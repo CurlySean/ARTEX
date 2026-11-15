@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>terminal</title>
+<style>
+  html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+  body { font-family: ui-monospace, "Cascadia Code", "Consolas", "Liberation Mono", "Weburp Evidence CJK", "Microsoft YaHei", monospace; font-size: 16px; line-height: 1.25; }
+  body[data-shell="cmd"]  { --bg: #0C0C0C; --fg: #CCCCCC; --cmdfg: #FFFFFF; }
+  body[data-shell="ps"]   { --bg: #012456; --fg: #FFFFFF; --cmdfg: #FFFFFF; }
+  body[data-shell="bash"] { --bg: #0C0C0C; --fg: #FFFFFF; --cmdfg: #FFFFFF; }
+  #term {
+    height: 100vh; box-sizing: border-box;
+    overflow-y: auto; overflow-x: hidden;
+    background: var(--bg); color: var(--fg);
+    padding: 8px 10px;
+    white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere;
+  }
+  .prompt { color: var(--fg); }
+  .cmdline { color: var(--cmdfg); }
+  .bu { color: #5AC864; }   /* bash: root@target 亮绿 */
+  .bd { color: #729FCF; }   /* bash: cwd 亮蓝 */
+  .exit { color: #E06C75; } /* [exit code N] 暗红 */
+  .cursor { background: var(--fg); animation: blink 1s step-end infinite; }
+  @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+</style>
+</head>
+<body>
+<div id="term"></div>
+<script>
+(function () {
+  "use strict";
+
+  var q = new URLSearchParams(location.search);
+  var term = document.getElementById("term");
+
+  var BANNER_CMD = "Microsoft Windows [版本 10.0.22631.4037]\n(c) Microsoft Corporation。保留所有权利。\n";
+  var DEFAULT_CWD = { cmd: "C:\\Users\\Administrator", ps: "C:\\Users\\Administrator", bash: "~" };
+  var TITLES = { cmd: "C:\\Windows\\system32\\cmd.exe", ps: "Windows PowerShell", bash: "root@target: ~" };
+  var SHELLS = ["cmd", "ps", "bash"];
+
+  function demoEntries(shell) {
+    if (shell === "bash") {
+      return [
+        { cwd: "~", cmd: "whoami", output: "root\n", exit: 0 },
+        { cwd: "~", cmd: "ip addr",
+          output: "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000\n" +
+                  "    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00\n" +
+                  "    inet 127.0.0.1/8 scope host lo\n" +
+                  "       valid_lft forever preferred_lft forever\n" +
+                  "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000\n" +
+                  "    link/ether 00:0c:29:3f:2a:1c brd ff:ff:ff:ff:ff:ff\n" +
+                  "    inet 192.168.1.100/24 brd 192.168.1.255 scope global dynamic eth0\n" +
+                  "       valid_lft 86314sec preferred_lft 86314sec\n", exit: 0 }
+      ];
+    }
+    return [
+      { cwd: "C:\\Users\\Administrator", cmd: "whoami", output: "nt authority\\system\n", exit: 0 },
+      { cwd: "C:\\Users\\Administrator", cmd: "ipconfig",
+        output: "\nWindows IP 配置\n\n\n以太网适配器 以太网:\n\n" +
+                "   连接特定的 DNS 后缀 . . . . . . . : \n" +
+                "   本地链接 IPv6 地址. . . . . . . . : fe80::7c1a:9f2e:44d1:3b6a%12\n" +
+                "   IPv4 地址 . . . . . . . . . . . . : 192.168.1.100\n" +
+                "   子网掩码  . . . . . . . . . . . . : 255.255.255.0\n" +
+                "   默认网关. . . . . . . . . . . . . : 192.168.1.1\n", exit: 0 }
+    ];
+  }
+
+  function b64urlDecode(s) {
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    var bin = atob(s);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
+  function appendPrompt(line, shell, cwd) {
+    var p = document.createElement("span");
+    p.className = "prompt";
+    if (shell === "bash") {
+      var u = document.createElement("span");
+      u.className = "bu"; u.textContent = "root@target";
+      p.appendChild(u);
+      p.appendChild(document.createTextNode(":"));
+      var d = document.createElement("span");
+      d.className = "bd"; d.textContent = cwd;
+      p.appendChild(d);
+      p.appendChild(document.createTextNode("#"));
+      line.appendChild(p);
+      line.appendChild(document.createTextNode(" "));
+    } else if (shell === "ps") {
+      p.textContent = "PS " + cwd + ">";
+      line.appendChild(p);
+      line.appendChild(document.createTextNode(" "));
+    } else {
+      p.textContent = cwd + ">";
+      line.appendChild(p);
+    }
+  }
+
+  function render(shell, entries, banner, showCursor, isError) {
+    document.body.setAttribute("data-shell", shell);
+    document.title = TITLES[shell] || TITLES.cmd;
+
+    var frag = document.createDocumentFragment();
+    if (shell === "cmd" && banner) {
+      var b = document.createElement("div");
+      b.textContent = BANNER_CMD;
+      frag.appendChild(b);
+    }
+
+    var cwd = DEFAULT_CWD[shell];
+    (entries || []).forEach(function (e) {
+      if (e.cwd) cwd = e.cwd;
+      var line = document.createElement("div");
+      appendPrompt(line, shell, cwd);
+      var c = document.createElement("span");
+      c.className = "cmdline";
+      c.textContent = (e.cmd == null ? "" : String(e.cmd));
+      line.appendChild(c);
+      frag.appendChild(line);
+
+      var out = (e.output == null ? "" : String(e.output)).replace(/\r\n/g, "\n").replace(/\n$/, "");
+      if (out) {
+        var o = document.createElement("div");
+        o.textContent = out;
+        frag.appendChild(o);
+      }
+      if (e.exit !== undefined && e.exit !== null && Number(e.exit) !== 0) {
+        var x = document.createElement("div");
+        x.className = "exit";
+        x.textContent = "[exit code " + e.exit + "]";
+        frag.appendChild(x);
+      }
+    });
+
+    var last = document.createElement("div");
+    appendPrompt(last, shell, cwd);
+    if (showCursor) {
+      var cur = document.createElement("span");
+      cur.className = "cursor";
+      cur.textContent = " ";
+      last.appendChild(cur);
+    }
+    frag.appendChild(last);
+
+    term.appendChild(frag);
+    term.scrollTop = term.scrollHeight;
+    if (!isError) {
+      import('/assets/evidence-render.js?token=' + encodeURIComponent(q.get('token') || ''))
+        .then(renderer => renderer.markEvidenceReady(q.get('token') || ''))
+        .catch(error => renderError(shell, '取证字体加载失败：' + error.message));
+    }
+  }
+
+  function renderError(shell, msg) {
+    render(shell, [], false, true, true);
+    window.__ready = false;document.documentElement.dataset.weburpReady = "error";
+    var d = document.createElement("div");
+    d.className = "exit";
+    d.textContent = "[error] " + msg;
+    term.insertBefore(d, term.lastChild);
+  }
+
+  function start() {
+    document.documentElement.dataset.weburpReady = "loading";
+    var z = parseFloat(q.get("zoom"));
+    if (z > 0) document.body.style.zoom = z;
+
+    var shellParam = (q.get("shell") || "cmd").toLowerCase();
+    if (SHELLS.indexOf(shellParam) < 0) shellParam = "cmd";
+    var showCursor = q.get("cursor") !== "0";
+
+    var m = (location.hash || "").match(/#d=([A-Za-z0-9\-_]+)/);
+    if (m) {
+      try {
+        render(shellParam, JSON.parse(b64urlDecode(m[1])), true, showCursor);
+      } catch (err) {
+        renderError(shellParam, "invalid hash data: " + err.message);
+      }
+      return;
+    }
+
+    var scene = q.get("scene");
+    if (scene) {
+      fetch("/api/scene/" + encodeURIComponent(scene), {
+        headers: { "Authorization": "Bearer " + (q.get("token") || "") }
+      }).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).then(function (sc) {
+        var shell = (sc.shell || shellParam).toLowerCase();
+        if (SHELLS.indexOf(shell) < 0) shell = shellParam;
+        render(shell, sc.entries || [], sc.banner !== false, showCursor);
+      }).catch(function (err) {
+        renderError(shellParam, "failed to load scene: " + err.message);
+      });
+      return;
+    }
+
+    render(shellParam, demoEntries(shellParam), true, showCursor);
+  }
+
+  start();
+})();
+</script>
+</body>
+</html>

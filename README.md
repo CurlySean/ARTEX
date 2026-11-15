@@ -98,6 +98,8 @@ docker compose up -d          # 拉取 autumn27/artex 镜像 + postgres
 `/message?sessionId=...` 接收 JSON-RPC 请求；配置时将 URL 填为 `/sse`，请求头按
 `Authorization=Bearer <token>` 填写。
 
+本分支支持在 Docker 中为 worker、pentest 和报告撰写者启用 Playwright 网页截图与 Weburp 报文截图。[浏览器取证部署与验证](deploy/browser-evidence/README.md)
+
 ### 方式三：下载预编译二进制（Releases）
 
 到 [Releases](https://github.com/Autumn-27/ARTEX/releases) 下载对应平台的 zip，解压后得到 `artex` + `start.sh`（Windows 为 `start.bat`）+ `skills/` + `config.example.json`：

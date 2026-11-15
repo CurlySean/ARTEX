@@ -1,0 +1,61 @@
+# Use together with docker-compose.yml, in the same Compose project.
+x-chromium: &chromium
+  image: artex-evidence-tools:local
+  build:
+    context: ./deploy/browser-evidence
+    args:
+      DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org}
+  restart: unless-stopped
+  init: true
+  read_only: true
+  user: "65534:65534"
+  security_opt:
+    - no-new-privileges:true
+    - seccomp=./deploy/browser-evidence/chromium-seccomp.json
+  cap_drop: [ALL]
+  pids_limit: 512
+  shm_size: 256m
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=512m
+
+services:
+  artex:
+    image: artex-branch-evidence:local
+    pull_policy: never
+    environment:
+      ARTEX_WEBURP_RENDERER: "1"
+  artex-browser:
+    <<: *chromium
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 8931), 2).close()"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    environment:
+      ARTEX_CAPTURE: "true"
+      ARTEX_BROWSER_PROXY: http://artex:8788
+      ARTEX_BROWSER_BYPASS: artex,artex-browser
+    volumes:
+      - ./data/browser-evidence:/evidence
+      - type: bind
+        source: ./data/traffic/_ca/mitmproxy-ca-cert.pem
+        target: /etc/artex/traffic-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+  weburp-renderer:
+    <<: *chromium
+    network_mode: service:artex
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 18777), 2).close()"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    environment:
+      HOME: /tmp
+      PYTHONPATH: /opt/weburp/tool
+    entrypoint: [python3, /opt/weburp/renderer.py]
+    volumes:
+      - ./skills/weburp/tool:/opt/weburp/tool:ro
