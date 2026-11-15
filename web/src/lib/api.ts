@@ -112,6 +112,17 @@ function getToken(): string | null {
   return localStorage.getItem("artex_token");
 }
 
+export async function workspaceFileBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  if (MOCK) return new Blob([`（demo）${path} 的下载内容示例。`], { type: "text/plain" });
+  const token = getToken();
+  const response = await fetch(`/api/workspace/download?path=${encodeURIComponent(path)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal,
+  });
+  if (!response.ok) throw new Error(`下载失败: ${response.status}`);
+  return response.blob();
+}
+
 export async function http<T>(path: string, init?: RequestInit): Promise<T> {
   if (MOCK) return mockHandle<T>(init?.method ?? "GET", path, init?.body ?? null);
   const token = getToken();
@@ -461,17 +472,7 @@ export const api = {
     return r.json() as Promise<{ uploaded: number }>;
   },
   workspaceDownload: async (path: string) => {
-    let blob: Blob;
-    if (MOCK) {
-      blob = new Blob([`（demo）${path} 的下载内容示例。`], { type: "text/plain" });
-    } else {
-      const token = getToken();
-      const r = await fetch(`/api/workspace/download?path=${encodeURIComponent(path)}`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
-      if (!r.ok) throw new Error(`下载失败: ${r.status}`);
-      blob = await r.blob();
-    }
+    const blob = await workspaceFileBlob(path);
     const objUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = objUrl;

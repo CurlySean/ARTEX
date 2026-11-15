@@ -3,10 +3,40 @@
 import * as React from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { workspaceFileBlob } from "@/lib/api";
+
+function WorkspaceImage({ path, alt, title }: { path: string; alt?: string; title?: string }) {
+  const [src, setSrc] = React.useState("");
+  const [error, setError] = React.useState(false);
+  React.useEffect(() => {
+    const controller = new AbortController();
+    let objectURL = "";
+    workspaceFileBlob(path, controller.signal).then(blob => {
+      if (controller.signal.aborted) return;
+      objectURL = URL.createObjectURL(blob);
+      setSrc(objectURL);
+    }).catch(() => {
+      if (!controller.signal.aborted) setError(true);
+    });
+    return () => {
+      controller.abort();
+      if (objectURL) URL.revokeObjectURL(objectURL);
+    };
+  }, [path]);
+  if (error) return <span>{alt || "截图"}（加载失败）</span>;
+  return src ? <img src={src} alt={alt || ""} title={title} /> : <span>{alt}</span>;
+}
 
 // Tailwind-styled element overrides (no typography plugin in this project, so we
 // style each element). `node` is stripped — it's not a valid DOM attribute.
 const components: Components = {
+  img: ({ node, src, alt, title, ...props }) => {
+    const endpoint = "/api/workspace/download?";
+    const path = typeof src === "string" && src.startsWith(endpoint)
+      ? new URLSearchParams(src.slice(endpoint.length)).get("path") : null;
+    return path ? <WorkspaceImage key={path} path={path} alt={alt} title={title} />
+      : <img src={src} alt={alt || ""} title={title} {...props} />;
+  },
   h1: ({ node, ...p }) => <div className="mt-2.5 text-base font-semibold" {...p} />,
   h2: ({ node, ...p }) => <div className="mt-2 text-sm font-semibold" {...p} />,
   h3: ({ node, ...p }) => <div className="mt-1.5 text-sm font-medium text-foreground/90" {...p} />,

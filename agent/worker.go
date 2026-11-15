@@ -268,6 +268,9 @@ func workerArtifactSpec(runDir string) string {
 	return "\n\n**中间产物输出规约**：脚本、payload、抓到的响应体、临时数据等一切中间产物，**一律写到本次意图的专属工作目录 " + runDir + "**（已自动建好，直接用相对路径写在这里即可，无需再手动建目录）——**不要写 /tmp、不要用其它绝对路径**。"
 }
 
+// Final evidence must remain available after the agent's working session ends.
+const evidenceOutputSpec = "\n最终报告截图使用专用证据目录：Playwright 的 filename 相对 browser-evidence 根目录，格式为 <任务ID>/<步骤>/<文件名>.png；Weburp 成图保存到数据目录下 tasks/<任务ID>/report-evidence/<漏洞ID>/。其他文件仍遵循上述工作目录规约。"
+
 // ensureRunDir builds and creates an agent's working directory under base:
 // <base>/tasks/<taskID> for planner/main; <base>/tasks/<taskID>/i<intentID> for a
 // worker (intentID<=0 → task dir only). The "tasks/" segment groups per-task dirs
@@ -290,7 +293,7 @@ func workerSystem(proxyAddr, caCert, dataDir, runDir string) string {
 	// caCert is present only when the recording MITM is on, which is exactly when
 	// the traffic_* tools are registered — so it gates the traffic-tool note.
 	// Optional finding guidance is added for every role after tool resolution.
-	return body + workerTrafficBlock(caCert != "") + workerArtifactSpec(runDir)
+	return body + workerTrafficBlock(caCert != "") + workerArtifactSpec(runDir) + evidenceOutputSpec
 }
 
 // renderIntentTask formats the claimed intent for the worker's launch USER message:

@@ -15,16 +15,16 @@ import (
 	"github.com/Autumn-27/artex/report"
 )
 
-func writeFindingsEvidenceZip(out io.Writer, findings []*db.DBFinding, stage string, now time.Time, renderer *report.Renderer) error {
+func writeFindingsEvidenceZip(out io.Writer, findings []*db.DBFinding, stage, workspace string, now time.Time, renderer *report.Renderer) error {
 	zw := zip.NewWriter(out)
-	if err := writeFindingsZipEntries(zw, findings, stage, now, renderer); err != nil {
+	if err := writeFindingsZipEntries(zw, findings, stage, workspace, now, renderer); err != nil {
 		zw.Close()
 		return err
 	}
 	return zw.Close()
 }
 
-func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage string, now time.Time, renderer *report.Renderer) error {
+func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage, workspace string, now time.Time, renderer *report.Renderer) error {
 	store := evidence.New(nil, nil, stage) // private export copy; not subject to GC
 	used := map[string]int{}
 	for _, f := range findings {
@@ -34,11 +34,15 @@ func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage str
 			name = fmt.Sprintf("%s-%d.md", strings.TrimSuffix(base, ".md"), n+1)
 		}
 		used[base]++
-		w, err := zw.Create(name)
+		md, err := renderer.Single(f, now)
 		if err != nil {
 			return err
 		}
-		md, err := renderer.Single(f, now)
+		md, err = zipFindingImages(zw, workspace, f, md)
+		if err != nil {
+			return fmt.Errorf("漏洞 #%d 导出截图失败: %w", f.ID, err)
+		}
+		w, err := zw.Create(name)
 		if err != nil {
 			return err
 		}
@@ -93,12 +97,12 @@ func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage str
 	return nil
 }
 
-func buildFindingsEvidenceZip(path string, findings []*db.DBFinding, stage string, now time.Time, renderer *report.Renderer) error {
+func buildFindingsEvidenceZip(path string, findings []*db.DBFinding, stage, workspace string, now time.Time, renderer *report.Renderer) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	writeErr := writeFindingsEvidenceZip(f, findings, stage, now, renderer)
+	writeErr := writeFindingsEvidenceZip(f, findings, stage, workspace, now, renderer)
 	syncErr := f.Sync()
 	closeErr := f.Close()
 	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {

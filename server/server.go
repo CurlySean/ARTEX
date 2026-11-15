@@ -2180,7 +2180,7 @@ func (s *Server) findingsExport(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(md))
 	case "md-zip":
 		path := filepath.Join(stage, "findings.zip")
-		if err := buildFindingsEvidenceZip(path, fs, stage, now, renderer); err != nil {
+		if err := buildFindingsEvidenceZip(path, fs, stage, s.m.dir, now, renderer); err != nil {
 			writeErr(w, 500, err.Error())
 			return
 		}
