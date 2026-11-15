@@ -52,7 +52,43 @@ func TestReportTemplateWorkflow(t *testing.T) {
 			t.Error(err)
 		}
 	})
+	checkList := func(defaultID int64) db.ReportTemplate {
+		t.Helper()
+		var list struct{ Templates []db.ReportTemplate }
+		if err := json.Unmarshal(call("GET", base, "", 200).Body.Bytes(), &list); err != nil {
+			t.Fatal(err)
+		}
+		defaults, originals := 0, 0
+		var original db.ReportTemplate
+		for _, item := range list.Templates {
+			if item.ID == 0 {
+				originals++
+				original = item
+			}
+			if item.IsDefault {
+				defaults++
+				if item.ID != defaultID {
+					t.Fatalf("unexpected default %d", item.ID)
+				}
+			}
+		}
+		if originals != 1 || defaults != 1 || original.Body == "" {
+			t.Fatalf("originals=%d defaults=%d", originals, defaults)
+		}
+		return original
+	}
 	call("PUT", base+"/0/default", "", 200)
+	original := checkList(0)
+	restore, _ := json.Marshal(original)
+	defer call("PUT", base+"/0", string(restore), 200)
+	call("PUT", base+"/0", `{"name":"原版编辑","body":"edited {{.Kind}}"}`, 200)
+	if got := checkList(0); got.Body != "edited {{.Kind}}" || got.Name != "原版编辑" {
+		t.Fatal(got)
+	}
+	if got, err := s.m.pg.ResolveReportTemplate(nil); err != nil || got != "edited {{.Kind}}" {
+		t.Fatal(got, err)
+	}
+	call("PUT", base+"/0", string(restore), 200)
 	var task TaskDTO
 	if err := json.Unmarshal(call("POST", "/api/tasks", fmt.Sprintf(`{"name":"模板验收","description":"测试描述","goal":"验证快照","report_template_id":%d}`, created.ID), 201).Body.Bytes(), &task); err != nil {
 		t.Fatal(err)
@@ -71,6 +107,7 @@ func TestReportTemplateWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	call("PUT", path+"/default", "", 200)
+	checkList(created.ID)
 	call("PUT", path, `{"name":"新报告","body":"新版 {{.Kind}}"}`, 200)
 	const export = "/api/exploration/findings/export?scope=selected&ids="
 	single := fmt.Sprintf("%s%d", export, finding.FindingID)
@@ -85,6 +122,7 @@ func TestReportTemplateWorkflow(t *testing.T) {
 		}
 	}
 	call("DELETE", path, "", 200)
+	checkList(0)
 	for _, c := range []struct{ path, want string }{
 		{"/api/report?task=" + task.ID, "客户版 task 模板验收 漏洞A"},
 		{single + "&format=md-single", "客户版 findings 漏洞发现汇总报告 漏洞A"},

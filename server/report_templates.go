@@ -38,6 +38,11 @@ func (s *Server) listReportTemplates(w http.ResponseWriter, r *http.Request) {
 		writeReportTemplateError(w, err)
 		return
 	}
+	for i := range items {
+		if items[i].ID == 0 && items[i].Body == "" {
+			items[i].Body = report.BuiltinTemplate
+		}
+	}
 	writeJSON(w, 200, map[string]any{"templates": items, "starter": report.StarterTemplate, "builtin": report.BuiltinTemplate})
 }
 
@@ -90,7 +95,7 @@ func (s *Server) saveReportTemplate(w http.ResponseWriter, r *http.Request) {
 	var id int64
 	if r.Method == http.MethodPut {
 		n, ok := pathInt(r, "id")
-		if !ok || n <= 0 {
+		if !ok || n < 0 {
 			writeErr(w, 400, "模板 ID 无效")
 			return
 		}
@@ -111,16 +116,23 @@ func (s *Server) saveReportTemplate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	saved, err := pg.SaveReportTemplate(id, name, req.Body)
+	status := http.StatusOK
+	var err error
+	if r.Method == http.MethodPost {
+		id, err = pg.CreateReportTemplate(name, req.Body)
+		status = http.StatusCreated
+	} else {
+		// The untouched original uses the legacy renderer, including for large reports.
+		if id == 0 && req.Body == report.BuiltinTemplate {
+			req.Body = ""
+		}
+		err = pg.UpdateReportTemplate(id, name, req.Body)
+	}
 	if err != nil {
 		writeReportTemplateError(w, err)
 		return
 	}
-	status := http.StatusOK
-	if id == 0 {
-		status = http.StatusCreated
-	}
-	writeJSON(w, status, map[string]int64{"id": saved})
+	writeJSON(w, status, map[string]int64{"id": id})
 }
 
 func (s *Server) setDefaultReportTemplate(w http.ResponseWriter, r *http.Request) {

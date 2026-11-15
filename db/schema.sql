@@ -1393,4 +1393,9 @@ CREATE TABLE IF NOT EXISTS report_templates (
  is_default BOOLEAN NOT NULL DEFAULT false
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_report_templates_default ON report_templates(is_default) WHERE is_default;
+-- ID 0 is also the original-template choice in existing API clients.
+INSERT INTO report_templates(id, name, body, is_default)
+SELECT 0, 'ARTEX 原版报告模板', '', NOT EXISTS (SELECT 1 FROM report_templates WHERE is_default)
+WHERE NOT EXISTS (SELECT 1 FROM report_templates WHERE id = 0)
+ON CONFLICT (id) DO NOTHING;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS report_template_body TEXT NOT NULL DEFAULT '';

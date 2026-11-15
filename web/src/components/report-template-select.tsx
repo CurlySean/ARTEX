@@ -33,7 +33,7 @@ export function ReportTemplateSelect({
   React.useEffect(() => {
     void load();
   }, [load]);
-  const defaultName = templates.find((template) => template.is_default)?.name ?? "内置模板";
+  const defaultName = templates.find((template) => template.is_default)?.name;
   return (
     <div className="grid gap-2">
       <Select value={value} onValueChange={onChange}>
@@ -42,9 +42,8 @@ export function ReportTemplateSelect({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="auto">
-            {exporting ? "自动选择" : loading || error ? "使用全局默认" : `使用全局默认（${defaultName}）`}
+            {exporting ? "自动选择" : loading || error || !defaultName ? "使用全局默认" : `使用全局默认（${defaultName}）`}
           </SelectItem>
-          <SelectItem value="0">内置模板</SelectItem>
           {templates.map((t) => (
             <SelectItem key={t.id} value={String(t.id)}>
               {t.name}

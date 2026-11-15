@@ -54,7 +54,7 @@ func cleanupReportTask(t *testing.T, d *DB, id int64) {
 
 func TestReportTemplatesSnapshotAndDefault(t *testing.T) {
 	d := reportTemplateTestDB(t)
-	id, err := d.SaveReportTemplate(0, "report", "original")
+	id, err := d.CreateReportTemplate("report", "original")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestReportTemplatesSnapshotAndDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	cleanupReportTask(t, d, task.ID)
-	if _, err = d.SaveReportTemplate(id, "renamed", "edited"); err != nil {
+	if err = d.UpdateReportTemplate(id, "renamed", "edited"); err != nil {
 		t.Fatal(err)
 	}
 	if err = d.DeleteReportTemplate(id); err != nil {
@@ -89,7 +89,7 @@ func TestReportTemplatesSnapshotAndDefault(t *testing.T) {
 	if _, err = d.ResolveReportTemplate(&id); !errors.Is(err, ErrReportTemplateNotFound) {
 		t.Fatalf("missing %v", err)
 	}
-	if _, err = d.SaveReportTemplate(id, "missing", "body"); !errors.Is(err, ErrReportTemplateNotFound) {
+	if err = d.UpdateReportTemplate(id, "missing", "body"); !errors.Is(err, ErrReportTemplateNotFound) {
 		t.Fatalf("update missing %v", err)
 	}
 	if err = d.DefaultReportTemplate(id); !errors.Is(err, ErrReportTemplateNotFound) {
@@ -110,11 +110,11 @@ func TestReportTemplatesSnapshotAndDefault(t *testing.T) {
 
 func TestReportTemplatesConcurrentDefault(t *testing.T) {
 	d := reportTemplateTestDB(t)
-	a, err := d.SaveReportTemplate(0, "a", "a")
+	a, err := d.CreateReportTemplate("a", "a")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := d.SaveReportTemplate(0, "b", "b")
+	b, err := d.CreateReportTemplate("b", "b")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestReportTemplatesConcurrentDefault(t *testing.T) {
 
 func TestReportTemplateArchiveRestore(t *testing.T) {
 	d := reportTemplateTestDB(t)
-	id, err := d.SaveReportTemplate(0, "archive", "archived body")
+	id, err := d.CreateReportTemplate("archive", "archived body")
 	if err != nil {
 		t.Fatal(err)
 	}

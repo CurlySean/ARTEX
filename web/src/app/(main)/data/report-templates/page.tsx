@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { PlusIcon, RefreshCwIcon } from "lucide-react";
+import { CopyIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { MOCK } from "@/lib/mock/enabled";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -56,7 +57,7 @@ export default function ReportTemplatesPage() {
     void load();
   }, [load]);
   function edit(t?: ReportTemplate) {
-    setKind("findings");
+    setKind(t?.id === 0 ? "task" : "findings");
     setId(t?.id ?? null);
     setName(t?.name ?? "");
     setBody(t?.body ?? starter);
@@ -124,7 +125,7 @@ export default function ReportTemplatesPage() {
   if (MOCK)
     return (
       <div className="grid gap-3">
-        <h1 className="text-2xl font-semibold">报告模板管理</h1>
+        <h1 className="font-semibold text-xl tracking-tight">报告模板配置</h1>
         <p className="text-sm text-muted-foreground">
           演示模式不支持报告模板管理。请在本地部署中创建、预览和配置模板。
         </p>
@@ -135,17 +136,17 @@ export default function ReportTemplatesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">报告模板管理</h1>
+          <h1 className="font-semibold text-xl tracking-tight">报告模板配置</h1>
           <p className="text-sm text-muted-foreground">
-            管理 Markdown 报告格式。任务创建时保存模板快照，后续修改不影响已有任务。
+            点击卡片编辑模板。星标表示新建任务使用的全局默认模板。
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" disabled={loading || busy} onClick={() => void load()}>
+          <Button size="sm" variant="outline" disabled={loading || busy} onClick={() => void load()}>
             <RefreshCwIcon />
             刷新
           </Button>
-          <Button disabled={loading || busy || !!error} onClick={() => edit()}>
+          <Button size="sm" variant="outline" disabled={loading || busy || !!error} onClick={() => edit()}>
             <PlusIcon />
             新建模板
           </Button>
@@ -156,80 +157,52 @@ export default function ReportTemplatesPage() {
           {error}
         </p>
       )}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle className="text-base">
-            ARTEX 原版报告模板{!templates.some((t) => t.is_default) && !loading && !error ? " · 全局默认" : ""}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <p className="text-sm text-muted-foreground">包含任务报告、发现汇总 MD 和 ZIP 中每条发现的原始版式。</p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" disabled={busy || loading || !builtin} onClick={() => {
-              edit();
-              setKind("task");
-              setName("ARTEX 原版报告模板（副本）");
-              setBody(builtin);
-            }}>
-              查看并复制原版
-            </Button>
-            <Button variant="outline" size="sm" disabled={busy || loading || !!error || !templates.some((t) => t.is_default)} onClick={() => void makeDefault(0)}>
-              设为默认
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            单条漏洞详细正文中的复现步骤、根因分析和修复建议由
-            <Link className="underline" href="/system/agents/detail?key=reporter">「报告撰写」Agent</Link>
-            的提示词定义。
-          </p>
-        </CardContent>
-      </Card>
-      {loading ? (
-        <p className="text-sm text-muted-foreground">加载中…</p>
-      ) : templates.length === 0 && !error ? (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          暂无自定义模板，点击“新建模板”从示例开始。
-        </div>
-      ) : (
-        templates.map((t) => (
-          <Card key={t.id}>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {t.name}
-                {t.is_default ? " · 全局默认" : ""}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => edit(t)}>
-                编辑与预览
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy || t.is_default}
-                onClick={() => void makeDefault(t.id)}
-              >
-                设为默认
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => {
-                  edit(t);
-                  setId(null);
-                  setName(`${t.name} 副本`);
-                }}
-              >
-                复制模板
-              </Button>
-              <Button variant="destructive" size="sm" disabled={busy} onClick={() => setDeleting(t)}>
-                删除
-              </Button>
+      {loading && templates.length === 0 && <p className="text-sm text-muted-foreground">加载中…</p>}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {templates.map((t) => (
+          <Card key={t.id} className={cn(
+            "relative gap-0 py-4 transition-colors hover:ring-foreground/30",
+            t.is_default && "bg-amber-400/5 ring-amber-400/50",
+          )}>
+            <CardContent className="grid gap-3 px-4">
+              <div className="flex items-center gap-2">
+                <StarIcon aria-hidden="true" className={cn(
+                  "size-4 shrink-0",
+                  t.is_default ? "fill-amber-400 text-amber-400" : "text-muted-foreground",
+                )} />
+                <button
+                  type="button"
+                  disabled={busy || loading}
+                  onClick={() => edit(t)}
+                  className="min-w-0 truncate cursor-pointer text-left font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+                >
+                  {t.name}
+                </button>
+              </div>
+              <div className="relative flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1" disabled={busy || loading || t.is_default}
+                  onClick={() => void makeDefault(t.id)}>
+                  {t.is_default ? "当前默认" : "设为默认"}
+                </Button>
+                <Button size="icon-sm" variant="outline" aria-label={`复制 ${t.name}`} title="复制模板"
+                  disabled={busy || loading} onClick={() => {
+                    edit(t);
+                    setId(null);
+                    setName(`${t.name} 副本`);
+                  }}>
+                  <CopyIcon />
+                </Button>
+                {t.id !== 0 && (
+                  <Button size="icon-sm" variant="outline" aria-label={`删除 ${t.name}`} title="删除模板"
+                    disabled={busy || loading} onClick={() => setDeleting(t)}>
+                    <Trash2Icon className="text-destructive" />
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
-        ))
-      )}
+        ))}
+      </div>
       <Dialog
         open={editor}
         onOpenChange={(open) => {
@@ -240,7 +213,7 @@ export default function ReportTemplatesPage() {
           <DialogHeader>
             <DialogTitle>{id === null ? "新建报告模板" : "编辑报告模板"}</DialogTitle>
             <DialogDescription>
-              使用 Go text/template 语法。预览可切换真实导出场景；保存时服务端会验证全部三个场景。
+              使用 Go text/template 编写任务报告、发现汇总和 ZIP 单条报告。任务创建时保存模板快照。
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
@@ -256,11 +229,11 @@ export default function ReportTemplatesPage() {
                   size="sm"
                   disabled={busy}
                   onClick={() => {
-                    setBody(starter);
+                    setBody(id === 0 ? builtin : starter);
                     setPreview(null);
                   }}
                 >
-                  复制示例到编辑器
+                  {id === 0 ? "载入原版正文" : "复制示例到编辑器"}
                 </Button>
               </div>
               <Textarea
@@ -277,6 +250,7 @@ export default function ReportTemplatesPage() {
                 根字段：Title、GeneratedAt、Findings、Kind、Total。Kind 实际值为小写 task / findings /
                 single。任务场景提供 Goal 和全局资产统计 Assets；发现导出可用 Report、Status、TrafficMarkdown，ZIP
                 附件链接位于 TrafficBindings 的 RequestPath / ResponsePath。
+                单条漏洞的详细正文由<Link className="underline" href="/system/agents/detail?key=reporter">「报告撰写」Agent</Link>生成。
               </p>
             </div>
             <div className="grid gap-2">
@@ -334,7 +308,7 @@ export default function ReportTemplatesPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>删除模板“{deleting?.name}”？</DialogTitle>
-            <DialogDescription>已有任务的模板快照会保留。删除默认模板后将使用内置模板。</DialogDescription>
+            <DialogDescription>已有任务的模板快照会保留。删除默认模板后会使用原版配置。</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" disabled={busy} onClick={() => setDeleting(null)}>
