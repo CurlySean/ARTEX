@@ -1,6 +1,7 @@
 package report
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,9 @@ import (
 
 const maxTemplateOutput = 8 << 20
 const maxTemplateBody = 64 << 10
+
+//go:embed builtin.md.tmpl
+var BuiltinTemplate string
 
 // StarterTemplate uses the same view for task, findings and single-finding exports.
 const StarterTemplate = `# {{.Title}}
@@ -66,10 +70,11 @@ type TemplateFinding struct {
 	TrafficBindings                                                                          []TemplateTraffic
 }
 type TemplateView struct {
-	Kind, Title, Goal, GeneratedAt string
-	Total                          int
-	Assets                         []TemplateAsset
-	Findings                       []TemplateFinding
+	Kind, Title, TaskDescription, Goal, GeneratedAt string
+	SeverityCounts                                  struct{ Critical, High, Medium, Low int }
+	Total                                           int
+	Assets                                          []TemplateAsset
+	Findings                                        []TemplateFinding
 }
 
 // Renderer holds an immutable, concurrently executable template. Empty bodies
@@ -84,7 +89,10 @@ func CompileTemplate(body string) (*Renderer, error) {
 	if len(body) > maxTemplateBody {
 		return nil, errors.New("template exceeds 64 KiB")
 	}
-	t, err := template.New("report").Option("missingkey=error").Parse(body)
+	t, err := template.New("report").Funcs(template.FuncMap{
+		"upper": strings.ToUpper, "trim": strings.TrimSpace, "defaultText": nz,
+		"inc": func(i int) int { return i + 1 },
+	}).Option("missingkey=error").Parse(body)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +144,7 @@ func validateNodes(n parse.Node, dot reflect.Type, vars map[string]reflect.Type,
 		return err
 	case *parse.IdentifierNode:
 		switch v.Ident {
-		case "len", "eq", "ne", "lt", "le", "gt", "ge", "and", "or", "not":
+		case "upper", "trim", "defaultText", "inc", "len", "eq", "ne", "lt", "le", "gt", "ge", "and", "or", "not":
 		default:
 			return fmt.Errorf("template function %q is not supported", v.Ident)
 		}
@@ -337,7 +345,7 @@ func (r *Renderer) Task(in Input) (string, error) {
 	if r == nil || r.tmpl == nil {
 		return Markdown(in), nil
 	}
-	v := TemplateView{Kind: "task", Title: nz(in.TaskName, nz(in.Title, "未命名任务")), Goal: in.Goal, GeneratedAt: templateTime(in.GeneratedAt), Total: len(in.Findings)}
+	v := TemplateView{Kind: "task", TaskDescription: in.Title, Title: nz(in.TaskName, nz(in.Title, "未命名任务")), Goal: in.Goal, GeneratedAt: templateTime(in.GeneratedAt), Total: len(in.Findings)}
 	for k, n := range in.AssetCounts {
 		v.Assets = append(v.Assets, TemplateAsset{k, n})
 	}
@@ -347,9 +355,12 @@ func (r *Renderer) Task(in Input) (string, error) {
 			continue
 		}
 		f := parseFinding(n)
-		v.Findings = append(v.Findings, TemplateFinding{ID: n.FindingID, FindingID: n.FindingID, NodeID: n.ID, CreatedAt: templateTime(n.CreatedAt), TaskDescription: in.Title, Name: nz(f.Name, nz(f.VulnClass, "未分类")), VulnClass: f.VulnClass, Severity: nz(f.Severity, "info"), Summary: f.Summary, Evidence: f.PoC})
+		v.Findings = append(v.Findings, TemplateFinding{ID: n.FindingID, FindingID: n.FindingID, NodeID: n.ID, CreatedAt: templateTime(n.CreatedAt), TaskDescription: in.Title, Name: nz(f.Name, nz(f.VulnClass, "未分类")), VulnClass: f.VulnClass, Severity: f.Severity, Summary: f.Summary, Evidence: f.PoC})
 	}
 	sort.SliceStable(v.Findings, func(i, j int) bool { return sevRank[v.Findings[i].Severity] < sevRank[v.Findings[j].Severity] })
+	for i := range v.Findings {
+		v.Findings[i].Severity = nz(v.Findings[i].Severity, "info")
+	}
 	return r.render(v)
 }
 func (r *Renderer) Findings(fs []*db.DBFinding, now time.Time) (string, error) {
@@ -365,6 +376,16 @@ func (r *Renderer) Findings(fs []*db.DBFinding, now time.Time) (string, error) {
 	sortFindingsForExport(items)
 	v := TemplateView{Kind: "findings", Title: "漏洞发现汇总报告", GeneratedAt: templateTime(now), Total: len(items)}
 	for _, f := range items {
+		switch f.Severity {
+		case "critical":
+			v.SeverityCounts.Critical++
+		case "high":
+			v.SeverityCounts.High++
+		case "medium":
+			v.SeverityCounts.Medium++
+		case "low":
+			v.SeverityCounts.Low++
+		}
 		v.Findings = append(v.Findings, templateFinding(f, false))
 	}
 	return r.render(v)

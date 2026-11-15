@@ -38,7 +38,7 @@ func (s *Server) listReportTemplates(w http.ResponseWriter, r *http.Request) {
 		writeReportTemplateError(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"templates": items, "starter": report.StarterTemplate})
+	writeJSON(w, 200, map[string]any{"templates": items, "starter": report.StarterTemplate, "builtin": report.BuiltinTemplate})
 }
 
 type reportTemplateRequest struct {

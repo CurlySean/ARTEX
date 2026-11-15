@@ -165,3 +165,35 @@ func TestPreviewKinds(t *testing.T) {
 		t.Fatal("invalid kind accepted")
 	}
 }
+
+func TestBuiltinTemplateReproducesOriginal(t *testing.T) {
+	r, err := CompileTemplate(BuiltinTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original *Renderer
+	for _, kind := range []string{"task", "findings", "single"} {
+		want, _ := original.PreviewKind(kind)
+		got, err := r.PreviewKind(kind)
+		if err != nil || got != want {
+			t.Errorf("%s: %v\ngot %q\nwant %q", kind, err, got, want)
+		}
+	}
+	for _, nodes := range [][]*db.Node{nil, {{Payload: []byte(`{"severity":"","summary":" "}`)}, {Payload: []byte(`{"severity":"low"}`)}}} {
+		in := Input{TaskName: "任务名称", Title: " ", Goal: " ", Findings: nodes, AssetCounts: map[string]int{"url": 2, "host": 1}}
+		if got, err := r.Task(in); err != nil || got != Markdown(in) {
+			t.Errorf("task: %v\n%q\n%q", err, got, Markdown(in))
+		}
+	}
+	now := time.Now()
+	for _, fs := range [][]*db.DBFinding{nil, {{}, {Severity: "low", Summary: " 内容 ", Report: " 正文 ", TaskDescription: " 描述 "}}} {
+		if got, err := r.Findings(fs, now); err != nil || got != FindingsMarkdown(fs, now) {
+			t.Errorf("findings: %v\n%q", err, got)
+		}
+		for _, f := range fs {
+			if got, err := r.Single(f, now); err != nil || got != SingleFindingMarkdown(f, now) {
+				t.Errorf("single: %v\n%q", err, got)
+			}
+		}
+	}
+}

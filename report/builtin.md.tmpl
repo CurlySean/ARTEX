@@ -1,0 +1,85 @@
+{{if eq .Kind "task"}}# 渗透测试报告 — {{defaultText .TaskDescription "未命名任务"}}
+
+- **任务目标**：{{defaultText .Goal "（未指定）"}}
+- **生成时间**：{{.GeneratedAt}}
+
+## 摘要
+
+- 确认发现：**{{.Total}}** 个
+- 资产：{{range $i, $asset := .Assets}}{{if $i}}、{{end}}{{.Type}} {{.Count}}{{end}}
+
+## 发现
+
+{{range $i, $finding := .Findings}}### {{inc $i}}. [{{upper .Severity}}] {{.Name}}
+
+{{defaultText .Summary ""}}
+
+{{if .Evidence}}**PoC / 证据：**
+
+```
+{{.Evidence}}
+```
+
+{{end}}{{else}}_本次未确认漏洞。_
+
+{{end}}{{else if eq .Kind "findings"}}# 漏洞发现汇总报告
+
+- **生成时间**：{{.GeneratedAt}}
+- **发现总数**：{{.Total}} 个
+
+## 摘要
+
+| 严重等级 | 数量 |
+| --- | --- |
+| 严重 | {{.SeverityCounts.Critical}} |
+| 高危 | {{.SeverityCounts.High}} |
+| 中危 | {{.SeverityCounts.Medium}} |
+| 低危 | {{.SeverityCounts.Low}} |
+
+{{if .Findings}}## 漏洞明细
+
+{{range $i, $finding := .Findings}}### {{inc $i}}. [{{upper .Severity}}] {{.Name}}
+
+{{if .VulnClass}}- **类别**：{{.VulnClass}}
+{{end}}- **状态**：{{.Status}}
+{{with trim .TaskDescription}}- **所属任务**：{{.}}
+{{end}}- **发现时间**：{{.CreatedAt}}
+
+{{with trim .Summary}}{{.}}
+
+{{end}}{{with trim .Evidence}}**证据：**
+
+```
+{{.}}
+```
+
+{{end}}{{with trim .Report}}**详细报告：**
+
+{{.}}
+
+{{end}}{{.TrafficMarkdown}}---
+
+{{end}}{{else}}_无匹配的漏洞。_
+{{end}}{{else if eq .Kind "single"}}{{range .Findings}}# [{{upper .Severity}}] {{.Name}}
+
+{{if .VulnClass}}- **类别**：{{.VulnClass}}
+{{end}}- **严重等级**：{{.Severity}}
+- **状态**：{{.Status}}
+{{with trim .TaskDescription}}- **所属任务**：{{.}}
+{{end}}- **发现时间**：{{.CreatedAt}}
+- **生成时间**：{{$.GeneratedAt}}
+
+{{with trim .Summary}}## 概述
+
+{{.}}
+
+{{end}}{{with trim .Evidence}}## 证据
+
+```
+{{.}}
+```
+
+{{end}}{{with trim .Report}}## 详细报告
+
+{{.}}
+{{end}}{{.TrafficMarkdown}}{{end}}{{end -}}

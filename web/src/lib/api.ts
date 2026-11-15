@@ -293,7 +293,7 @@ export const api = {
       task_ids: taskIds,
       category_id: categoryId ?? null,
     }),
-  reportTemplates: () => MOCK ? Promise.resolve({ templates: [] as ReportTemplate[], starter: "" }) : get<{ templates: ReportTemplate[]; starter: string }>("/report-templates"),
+  reportTemplates: () => MOCK ? Promise.resolve({ templates: [] as ReportTemplate[], starter: "", builtin: "" }) : get<{ templates: ReportTemplate[]; starter: string; builtin: string }>("/report-templates"),
   createReportTemplate: (input: { name: string; body: string }) => reportTemplateWrite(() => post<ReportTemplate>("/report-templates", input)),
   updateReportTemplate: (id: number, input: { name: string; body: string }) => reportTemplateWrite(() => put<ReportTemplate>(`/report-templates/${id}`, input)),
   deleteReportTemplate: (id: number) => reportTemplateWrite(() => del(`/report-templates/${id}`)),

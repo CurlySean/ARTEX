@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { PlusIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/markdown";
@@ -24,6 +25,7 @@ import type { ReportTemplate } from "@/lib/types";
 
 export default function ReportTemplatesPage() {
   const [templates, setTemplates] = React.useState<ReportTemplate[]>([]);
+  const [builtin, setBuiltin] = React.useState("");
   const [starter, setStarter] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -42,6 +44,7 @@ export default function ReportTemplatesPage() {
     try {
       const data = await api.reportTemplates();
       setTemplates(data.templates ?? []);
+      setBuiltin(data.builtin);
       setStarter(data.starter ?? "");
     } catch (e) {
       setError((e as Error).message);
@@ -156,14 +159,29 @@ export default function ReportTemplatesPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle className="text-base">
-            内置模板{!templates.some((t) => t.is_default) && !loading && !error ? " · 全局默认" : ""}
+            ARTEX 原版报告模板{!templates.some((t) => t.is_default) && !loading && !error ? " · 全局默认" : ""}
           </CardTitle>
-          <Button variant="outline" size="sm" disabled={busy || loading} onClick={() => void makeDefault(0)}>
-            恢复内置默认
-          </Button>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          选择自定义模板作为全局默认后，新建任务会自动使用该模板；导出时也可单独覆盖。
+        <CardContent className="grid gap-3">
+          <p className="text-sm text-muted-foreground">包含任务报告、发现汇总 MD 和 ZIP 中每条发现的原始版式。</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" disabled={busy || loading || !builtin} onClick={() => {
+              edit();
+              setKind("task");
+              setName("ARTEX 原版报告模板（副本）");
+              setBody(builtin);
+            }}>
+              查看并复制原版
+            </Button>
+            <Button variant="outline" size="sm" disabled={busy || loading || !!error || !templates.some((t) => t.is_default)} onClick={() => void makeDefault(0)}>
+              设为默认
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            单条漏洞详细正文中的复现步骤、根因分析和修复建议由
+            <Link className="underline" href="/system/agents/detail?key=reporter">「报告撰写」Agent</Link>
+            的提示词定义。
+          </p>
         </CardContent>
       </Card>
       {loading ? (
