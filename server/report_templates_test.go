@@ -26,7 +26,7 @@ func TestReportTemplateWorkflow(t *testing.T) {
 	}
 	const base = "/api/report-templates"
 	call("POST", base, `{"name":"bad","body":"{{.UnknownField}}"}`, 400)
-	const draft = `{"name":"客户报告","body":"客户版 {{.Kind}} {{.Title}} {{range .Findings}}{{.Name}}{{end}}"}`
+	const draft = `{"name":"客户报告","body":"客户版 {{.Kind}} {{.Title}} {{range .Findings}}{{.Name}} {{.Sections.Remediation}}{{end}}"}`
 	preview := call("POST", base+"/preview", draft, 200)
 	if !strings.Contains(preview.Body.String(), "客户版") {
 		t.Fatal(preview.Body)
@@ -106,6 +106,9 @@ func TestReportTemplateWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.m.pg.SetFindingReportByNodeID(finding.NodeID, "## 修复建议\n校验接口权限"); err != nil {
+		t.Fatal(err)
+	}
 	call("PUT", path+"/default", "", 200)
 	checkList(created.ID)
 	call("PUT", path, `{"name":"新报告","body":"新版 {{.Kind}}"}`, 200)
@@ -124,8 +127,8 @@ func TestReportTemplateWorkflow(t *testing.T) {
 	call("DELETE", path, "", 200)
 	checkList(0)
 	for _, c := range []struct{ path, want string }{
-		{"/api/report?task=" + task.ID, "客户版 task 模板验收 漏洞A"},
-		{single + "&format=md-single", "客户版 findings 漏洞发现汇总报告 漏洞A"},
+		{"/api/report?task=" + task.ID, "客户版 task 模板验收 漏洞A 校验接口权限"},
+		{single + "&format=md-single", "客户版 findings 漏洞发现汇总报告 漏洞A 校验接口权限"},
 	} {
 		if got := call("GET", c.path, "", 200).Body.String(); !strings.Contains(got, c.want) {
 			t.Fatalf("%s: %s", c.path, got)
@@ -145,7 +148,7 @@ func TestReportTemplateWorkflow(t *testing.T) {
 	}
 	defer file.Close()
 	md, err := io.ReadAll(file)
-	if err != nil || !strings.Contains(string(md), "客户版 single 漏洞A 漏洞A") {
+	if err != nil || !strings.Contains(string(md), "客户版 single 漏洞A 漏洞A 校验接口权限") {
 		t.Fatalf("ZIP report %q, %v", md, err)
 	}
 }

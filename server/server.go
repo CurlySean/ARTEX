@@ -3886,10 +3886,18 @@ func (s *Server) getReport(w http.ResponseWriter, r *http.Request) {
 		writeReportTemplateError(w, err)
 		return
 	}
-	md, err := renderer.Task(report.Input{
+	input := report.Input{
 		TaskName: t.lifecycleSnapshot().Name, Title: t.Description, Goal: t.Goal, GeneratedAt: time.Now(),
 		AssetCounts: counts, Findings: findings,
-	})
+	}
+	if body != "" && len(findings) > 0 {
+		input.ReportsByNode, err = s.m.pg.FindingReportsByNode(taskID, findings)
+		if err != nil {
+			writeReportTemplateError(w, err)
+			return
+		}
+	}
+	md, err := renderer.Task(input)
 	if err != nil {
 		writeReportTemplateError(w, err)
 		return

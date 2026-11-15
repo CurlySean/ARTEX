@@ -197,3 +197,10 @@ func TestBuiltinTemplateReproducesOriginal(t *testing.T) {
 		}
 	}
 }
+
+func TestReportSectionsPreserveEvidenceAndSubheadings(t *testing.T) {
+	s := reportSections("## 复现步骤\r\n\r\n~~~http\n## 修复建议\n~~~\n## 修复建议\n### 短期\n收紧权限。\n## 附录\n略")
+	if s.Reproduction != "~~~http\n## 修复建议\n~~~" || s.Remediation != "### 短期\n收紧权限。" {
+		t.Fatal(s)
+	}
+}

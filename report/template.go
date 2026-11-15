@@ -61,6 +61,7 @@ type TemplateTraffic struct {
 	RequestPath, ResponsePath string
 }
 type TemplateFinding struct {
+	Sections ReportSections
 	// ID and FindingID always identify a persisted finding, never a graph node.
 	ID, FindingID, NodeID                                                                    int64
 	Name, VulnClass, Severity, Status, Summary, Evidence, Report, TaskDescription, CreatedAt string
@@ -327,7 +328,7 @@ func (r *Renderer) render(v TemplateView) (string, error) {
 }
 func templateTime(t time.Time) string { return t.Format("2006-01-02 15:04:05") }
 func templateFinding(f *db.DBFinding, attachments bool) TemplateFinding {
-	v := TemplateFinding{ID: f.ID, FindingID: f.ID, Name: findingTitle(f), VulnClass: f.VulnClass, Severity: nz(f.Severity, "info"), Status: nz(f.Status, "pending"), Summary: f.Summary, Evidence: f.Evidence, Report: f.Report, TaskDescription: f.TaskDescription, CreatedAt: templateTime(f.CreatedAt), EvidenceVersion: f.EvidenceVersion, ReportEvidenceVersion: f.ReportEvidenceVersion, Stale: f.Report != "" && f.EvidenceVersion != f.ReportEvidenceVersion, TrafficMarkdown: findingTrafficMarkdown(f, attachments)}
+	v := TemplateFinding{Sections: reportSections(f.Report), ID: f.ID, FindingID: f.ID, Name: findingTitle(f), VulnClass: f.VulnClass, Severity: nz(f.Severity, "info"), Status: nz(f.Status, "pending"), Summary: f.Summary, Evidence: f.Evidence, Report: f.Report, TaskDescription: f.TaskDescription, CreatedAt: templateTime(f.CreatedAt), EvidenceVersion: f.EvidenceVersion, ReportEvidenceVersion: f.ReportEvidenceVersion, Stale: f.Report != "" && f.EvidenceVersion != f.ReportEvidenceVersion, TrafficMarkdown: findingTrafficMarkdown(f, attachments)}
 	if f.NodeID != nil {
 		v.NodeID = *f.NodeID
 	}
@@ -355,7 +356,8 @@ func (r *Renderer) Task(in Input) (string, error) {
 			continue
 		}
 		f := parseFinding(n)
-		v.Findings = append(v.Findings, TemplateFinding{ID: n.FindingID, FindingID: n.FindingID, NodeID: n.ID, CreatedAt: templateTime(n.CreatedAt), TaskDescription: in.Title, Name: nz(f.Name, nz(f.VulnClass, "未分类")), VulnClass: f.VulnClass, Severity: f.Severity, Summary: f.Summary, Evidence: f.PoC})
+		detail := in.ReportsByNode[n.ID]
+		v.Findings = append(v.Findings, TemplateFinding{Report: detail, Sections: reportSections(detail), ID: n.FindingID, FindingID: n.FindingID, NodeID: n.ID, CreatedAt: templateTime(n.CreatedAt), TaskDescription: in.Title, Name: nz(f.Name, nz(f.VulnClass, "未分类")), VulnClass: f.VulnClass, Severity: f.Severity, Summary: f.Summary, Evidence: f.PoC})
 	}
 	sort.SliceStable(v.Findings, func(i, j int) bool { return sevRank[v.Findings[i].Severity] < sevRank[v.Findings[j].Severity] })
 	for i := range v.Findings {
@@ -405,11 +407,11 @@ func (r *Renderer) Preview() (string, error) { return r.PreviewKind("findings") 
 func (r *Renderer) PreviewKind(kind string) (string, error) {
 	now := time.Date(2026, 1, 2, 15, 4, 5, 0, time.UTC)
 	nodeID := int64(42)
-	f := &db.DBFinding{ID: 1, NodeID: &nodeID, Name: "示例漏洞", VulnClass: "示例类别", Severity: "high", Status: "confirmed", Summary: "示例概述", Evidence: "示例证据", Report: "示例详细报告", TaskDescription: "示例任务描述", CreatedAt: now, EvidenceVersion: 2, ReportEvidenceVersion: 1, TrafficBindings: []db.FindingTrafficBinding{{ID: 1, Role: "proof", Note: "示例流量"}}}
+	f := &db.DBFinding{ID: 1, NodeID: &nodeID, Name: "示例漏洞", VulnClass: "示例类别", Severity: "high", Status: "confirmed", Summary: "示例概述", Evidence: "示例证据", Report: "## 受影响范围\n\nhttps://example.test/admin\n\n## 复现步骤\n\n以访客身份请求管理接口，响应包含管理数据。\n\n## 修复建议\n\n在管理接口校验用户角色。", TaskDescription: "示例任务描述", CreatedAt: now, EvidenceVersion: 2, ReportEvidenceVersion: 1, TrafficBindings: []db.FindingTrafficBinding{{ID: 1, Role: "proof", Note: "示例流量"}}}
 	switch kind {
 	case "task":
 		payload, _ := json.Marshal(map[string]any{"name": f.Name, "vulnclass": f.VulnClass, "severity": f.Severity, "summary": f.Summary, "evidence": map[string]string{"poc": f.Evidence}})
-		return r.Task(Input{TaskName: "示例任务", Title: f.TaskDescription, Goal: "验证报告模板", GeneratedAt: now, AssetCounts: map[string]int{"url": 1}, Findings: []*db.Node{{ID: nodeID, FindingID: f.ID, CreatedAt: now, Payload: payload}}})
+		return r.Task(Input{TaskName: "示例任务", Title: f.TaskDescription, ReportsByNode: map[int64]string{nodeID: f.Report}, Goal: "验证报告模板", GeneratedAt: now, AssetCounts: map[string]int{"url": 1}, Findings: []*db.Node{{ID: nodeID, FindingID: f.ID, CreatedAt: now, Payload: payload}}})
 	case "findings":
 		return r.Findings([]*db.DBFinding{f}, now)
 	case "single":

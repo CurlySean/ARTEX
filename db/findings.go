@@ -465,6 +465,30 @@ RETURNING id, created_at`, s.expID, audit.NodeID, utf8Clean(audit.Worker), utf8C
 	return intentID, audit, nil
 }
 
+// FindingReportsByNode returns the saved Markdown for the nodes in one task report.
+func (d *DB) FindingReportsByNode(taskID int64, nodes []*Node) (map[int64]string, error) {
+	ids := make([]int64, 0, len(nodes))
+	for _, n := range nodes {
+		ids = append(ids, n.ID)
+	}
+	rows, err := d.Query(`SELECT node_id, report FROM findings
+		WHERE task_id=$1 AND node_id=ANY($2::bigint[]) AND report<>''`, taskID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	reports := make(map[int64]string)
+	for rows.Next() {
+		var nodeID int64
+		var markdown string
+		if err := rows.Scan(&nodeID, &markdown); err != nil {
+			return nil, err
+		}
+		reports[nodeID] = markdown
+	}
+	return reports, rows.Err()
+}
+
 // ListFindingsForExport returns findings for the 发现 page 导出功能，携带完整
 // report 字段、不分页。ids 非空时按这批 finding id 精确导出(勾选导出),忽略
 // filter;ids 为空时按 filter 导出(导出当前筛选/全部)。结果按严重等级降序、
