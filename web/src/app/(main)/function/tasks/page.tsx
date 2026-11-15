@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ReportTemplateSelect } from "@/components/report-template-select";
 
 import Link from "next/link";
 
@@ -1223,9 +1224,7 @@ const TaskRow = React.memo(function TaskRow({
           const f = task.findings;
           const total = f ? f.critical + f.high + f.medium + f.low : 0;
           if (!f || total === 0) return <span className="text-muted-foreground">0</span>;
-          const seg = (n: number, cls: string) => (
-            <span className={n > 0 ? cls : "text-muted-foreground"}>{n}</span>
-          );
+          const seg = (n: number, cls: string) => <span className={n > 0 ? cls : "text-muted-foreground"}>{n}</span>;
           return (
             <span className="font-medium whitespace-nowrap" title="严重 / 高 / 中 / 低">
               {seg(f.critical, "text-rose-600 dark:text-rose-400")}
@@ -3084,6 +3083,7 @@ function CreateTaskSheet({
   const [llmProfileIDs, setLLMProfileIDs] = React.useState<string[]>([]);
   const [creating, setCreating] = React.useState(false);
   const [timeoutMin, setTimeoutMin] = React.useState(""); // 任务级超时(分钟);空/0 = 不限时
+  const [reportTemplateID, setReportTemplateID] = React.useState("auto");
   const [heartbeatMin, setHeartbeatMin] = React.useState("10"); // planner 心跳(分钟);默认10,下限10(与后端一致)
   const [seedFirstIntent, setSeedFirstIntent] = React.useState(false); // 创建时下发种子意图,worker 免等首轮 planner 直接开跑;默认关闭,走标准先规划再执行
   const [coverageEnabled, setCoverageEnabled] = React.useState(true); // 资产覆盖度功能;默认开。关闭=不计算/展示覆盖度、不累积范围、隐藏范围类工具(company 关联不受影响)
@@ -3143,6 +3143,7 @@ function CreateTaskSheet({
       const timeoutSec = Math.max(0, Math.floor(Number(timeoutMin) || 0)) * 60;
       const heartbeatSec = Math.max(10, Math.floor(Number(heartbeatMin) || 10)) * 60; // 下限 10min，与后端归一一致
       await api.createTask({
+        reportTemplateId: reportTemplateID === "auto" ? undefined : Number(reportTemplateID),
         name: name.trim(),
         categoryId: categoryID,
         description: description.trim(),
@@ -3163,6 +3164,7 @@ function CreateTaskSheet({
       setCategoryID(undefined);
       setDescription("");
       setGoal("");
+      setReportTemplateID("auto");
       setSelectedTemplateID(null);
       setSourceTaskIDs([]);
       setCompanyIDs([]);
@@ -3338,6 +3340,11 @@ function CreateTaskSheet({
                 <span className="text-muted-foreground ml-auto text-xs font-normal">超时 · 心跳 · 首个意图</span>
               </CollapsibleTrigger>
               <CollapsibleContent className="grid gap-5 pt-5">
+                <div className="grid gap-2">
+                  <Label>报告模板</Label>
+                  <ReportTemplateSelect value={reportTemplateID} onChange={setReportTemplateID} />
+                  <p className="text-muted-foreground text-xs">创建时保存模板快照，后续修改全局模板不会影响本任务。</p>
+                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="timeout-min">任务超时（分钟，可选）</Label>
                   <Input

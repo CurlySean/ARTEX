@@ -810,6 +810,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/notify/deliveries", s.notifyListDeliveries)
 	mux.HandleFunc("POST /api/notify/deliveries/{id}/retry", s.notifyRetryDelivery)
 	mux.HandleFunc("POST /api/settings/web-search/test", s.testWebSearch)
+	s.registerReportTemplates(mux)
 	mux.HandleFunc("GET /api/report", s.getReport)
 	mux.HandleFunc("GET /api/chat/mentions", s.searchChatMentions)
 	mux.HandleFunc("POST /api/chat", s.chat)
@@ -1447,6 +1448,7 @@ type createTaskReq struct {
 	CategoryID           *int64   `json:"category_id,omitempty"`
 	Description          string   `json:"description"`
 	Goal                 string   `json:"goal"`
+	ReportTemplateID     *int64   `json:"report_template_id,omitempty"`
 	LLMProfileID         *int64   `json:"llm_profile_id,omitempty"`    // 指定运行本任务的 LLM 配置;省略/null=用激活配置
 	LLMProfileIDs        []int64  `json:"llm_profile_ids,omitempty"`   // 有序任务级配置链;第一项初始生效
 	SourceTaskIDs        []string `json:"source_task_ids,omitempty"`   // 仅直接、只读继承的来源任务
@@ -1509,13 +1511,17 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.m.CreateTaskWithOptions(req.Description, req.Goal, db.TaskCreateOptions{
-		Name: strings.TrimSpace(req.Name), CategoryID: req.CategoryID,
+		Name: strings.TrimSpace(req.Name), CategoryID: req.CategoryID, ReportTemplateID: req.ReportTemplateID,
 		SourceTaskIDs: sourceIDs, CompanyIDs: req.CompanyIDs, LLMProfileIDs: req.LLMProfileIDs,
 		TimeoutSeconds: req.TimeoutSeconds, PlanHeartbeatSeconds: req.PlanHeartbeatSeconds,
 		CoverageEnabled: req.CoverageEnabled,
 		InterceptRules:  interceptRules,
 	})
 	if err != nil {
+		if errors.Is(err, db.ErrReportTemplateNotFound) {
+			writeReportTemplateError(w, err)
+			return
+		}
 		if errors.Is(err, db.ErrTaskCategoryInvalid) || errors.Is(err, db.ErrTaskCategoryNotFound) {
 			writeErr(w, 400, "任务分类不存在或无效")
 			return
@@ -2138,6 +2144,14 @@ func (s *Server) findingsExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var renderer *report.Renderer
+	if format == "md-single" || format == "md-zip" {
+		var ok bool
+		renderer, ok = s.exportReportRenderer(w, r, fs, filter)
+		if !ok {
+			return
+		}
+	}
 	stage, err := os.MkdirTemp("", "artex-finding-export-")
 	if err != nil {
 		writeErr(w, 500, err.Error())
@@ -2157,11 +2171,16 @@ func (s *Server) findingsExport(w http.ResponseWriter, r *http.Request) {
 
 	switch format {
 	case "md-single":
+		md, err := renderer.Findings(fs, now)
+		if err != nil {
+			writeReportTemplateError(w, err)
+			return
+		}
 		setDownload("text/markdown; charset=utf-8", "findings-"+stamp+".md")
-		_, _ = w.Write([]byte(report.FindingsMarkdown(fs, now)))
+		_, _ = w.Write([]byte(md))
 	case "md-zip":
 		path := filepath.Join(stage, "findings.zip")
-		if err := buildFindingsEvidenceZip(path, fs, stage, now); err != nil {
+		if err := buildFindingsEvidenceZip(path, fs, stage, now, renderer); err != nil {
 			writeErr(w, 500, err.Error())
 			return
 		}
@@ -3852,10 +3871,29 @@ func (s *Server) getReport(w http.ResponseWriter, r *http.Request) {
 			counts[ty] = len(ns)
 		}
 	}
-	md := report.Markdown(report.Input{
-		Title: t.Description, Goal: t.Goal, GeneratedAt: time.Now(),
+	taskID, err := strconv.ParseInt(t.ID, 10, 64)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	body, err := s.m.pg.TaskReportTemplate(taskID)
+	if err != nil {
+		writeReportTemplateError(w, err)
+		return
+	}
+	renderer, err := report.CompileTemplate(body)
+	if err != nil {
+		writeReportTemplateError(w, err)
+		return
+	}
+	md, err := renderer.Task(report.Input{
+		TaskName: t.lifecycleSnapshot().Name, Title: t.Description, Goal: t.Goal, GeneratedAt: time.Now(),
 		AssetCounts: counts, Findings: findings,
 	})
+	if err != nil {
+		writeReportTemplateError(w, err)
+		return
+	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(200)
 	_, _ = w.Write([]byte(md))

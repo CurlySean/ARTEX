@@ -13,19 +13,26 @@ import { copyText } from "@/lib/utils";
 
 export function ReportTab({ taskId }: { taskId: string }) {
   const [report, setReport] = React.useState<string>("");
+  const [error, setError] = React.useState("");
+  const [retry, setRetry] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
     setLoading(true);
+    setError("");
+    setReport("");
     api
       .report(taskId)
       .then((text) => {
         if (active) setReport(text);
       })
-      .catch(() => {
-        if (active) setReport("");
+      .catch((e) => {
+        if (active) {
+          setReport("");
+          setError((e as Error).message);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -33,7 +40,7 @@ export function ReportTab({ taskId }: { taskId: string }) {
     return () => {
       active = false;
     };
-  }, [taskId]);
+  }, [taskId, retry]);
 
   async function copy() {
     if (!report) return;
@@ -53,6 +60,15 @@ export function ReportTab({ taskId }: { taskId: string }) {
       <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed py-16 text-muted-foreground text-sm">
         <FileTextIcon className="size-8 opacity-40" />
         加载中…
+      </div>
+    );
+  } else if (error) {
+    content = (
+      <div role="alert" className="grid gap-3 rounded-md border border-destructive/30 p-4 text-sm text-destructive">
+        <p>报告生成失败：{error}</p>
+        <Button className="w-fit" variant="outline" onClick={() => setRetry((v) => v + 1)}>
+          重试
+        </Button>
       </div>
     );
   } else if (report) {

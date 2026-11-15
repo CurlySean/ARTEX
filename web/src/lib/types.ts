@@ -1610,3 +1610,10 @@ export interface InterceptExecution {
   seq: number;
   items: Activity[];
 }
+
+export interface ReportTemplate {
+  id: number;
+  name: string;
+  body: string;
+  is_default: boolean;
+}

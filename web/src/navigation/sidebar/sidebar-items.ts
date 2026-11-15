@@ -79,6 +79,11 @@ export const sidebarItems: NavGroup[] = [
     ],
   },
   {
+    id: 3,
+    label: "数据",
+    items: [{ id: "report-templates", title: "报告模板管理", url: "/data/report-templates", icon: ScrollText }],
+  },
+  {
     id: 2,
     label: "系统",
     items: [

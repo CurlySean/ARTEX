@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ReportTemplateSelect } from "@/components/report-template-select";
 
 import Link from "next/link";
 
@@ -252,6 +253,8 @@ export default function FindingsPage() {
   const [exportOpen, setExportOpen] = React.useState(false);
   const [exportScope, setExportScope] = React.useState<"filtered" | "all" | "selected">("filtered");
   const [exportFormat, setExportFormat] = React.useState<"md-single" | "md-zip" | "csv" | "json">("md-single");
+  const [reportTemplateID, setReportTemplateID] = React.useState("auto");
+  const [exportError, setExportError] = React.useState("");
   const [exporting, setExporting] = React.useState(false);
 
   const toggleSelected = React.useCallback((id: string, checked: boolean) => {
@@ -277,13 +280,18 @@ export default function FindingsPage() {
   // 打开导出弹窗时,若有勾选项则默认范围切到「选中」,否则「当前筛选」。
   function openExport() {
     setExportScope(selectedIds.size > 0 ? "selected" : "filtered");
+    setReportTemplateID("auto");
+    setExportError("");
     setExportOpen(true);
   }
 
   async function doExport() {
     setExporting(true);
+    setExportError("");
     try {
       await api.exportFindings({
+        reportTemplateId:
+          exportFormat.startsWith("md-") && reportTemplateID !== "auto" ? Number(reportTemplateID) : undefined,
         format: exportFormat,
         scope: exportScope,
         filters: { severity, status, vulnclass, task, query, sort },
@@ -292,6 +300,7 @@ export default function FindingsPage() {
       setExportOpen(false);
       toast.success("已开始下载导出文件");
     } catch (e) {
+      setExportError((e as Error).message);
       toast.error(`导出失败：${(e as Error).message}`);
     } finally {
       setExporting(false);
@@ -1248,6 +1257,20 @@ export default function FindingsPage() {
             </div>
           </div>
 
+          {exportFormat.startsWith("md-") && (
+            <div className="grid gap-2">
+              <span className="text-sm font-medium">报告模板</span>
+              <ReportTemplateSelect value={reportTemplateID} onChange={setReportTemplateID} exporting />
+              <p className="text-xs text-muted-foreground">
+                自动：单任务导出使用任务模板快照；跨任务导出使用当前全局默认模板。
+              </p>
+            </div>
+          )}
+          {exportError && (
+            <p role="alert" className="text-sm text-destructive">
+              导出失败：{exportError}
+            </p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setExportOpen(false)} disabled={exporting}>
               取消

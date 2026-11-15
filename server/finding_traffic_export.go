@@ -15,16 +15,16 @@ import (
 	"github.com/Autumn-27/artex/report"
 )
 
-func writeFindingsEvidenceZip(out io.Writer, findings []*db.DBFinding, stage string, now time.Time) error {
+func writeFindingsEvidenceZip(out io.Writer, findings []*db.DBFinding, stage string, now time.Time, renderer *report.Renderer) error {
 	zw := zip.NewWriter(out)
-	if err := writeFindingsZipEntries(zw, findings, stage, now); err != nil {
+	if err := writeFindingsZipEntries(zw, findings, stage, now, renderer); err != nil {
 		zw.Close()
 		return err
 	}
 	return zw.Close()
 }
 
-func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage string, now time.Time) error {
+func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage string, now time.Time, renderer *report.Renderer) error {
 	store := evidence.New(nil, nil, stage) // private export copy; not subject to GC
 	used := map[string]int{}
 	for _, f := range findings {
@@ -38,7 +38,11 @@ func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage str
 		if err != nil {
 			return err
 		}
-		if _, err = io.WriteString(w, report.SingleFindingMarkdown(f, now)); err != nil {
+		md, err := renderer.Single(f, now)
+		if err != nil {
+			return err
+		}
+		if _, err = io.WriteString(w, md); err != nil {
 			return err
 		}
 		for _, b := range f.TrafficBindings {
@@ -89,12 +93,12 @@ func writeFindingsZipEntries(zw *zip.Writer, findings []*db.DBFinding, stage str
 	return nil
 }
 
-func buildFindingsEvidenceZip(path string, findings []*db.DBFinding, stage string, now time.Time) error {
+func buildFindingsEvidenceZip(path string, findings []*db.DBFinding, stage string, now time.Time, renderer *report.Renderer) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	writeErr := writeFindingsEvidenceZip(f, findings, stage, now)
+	writeErr := writeFindingsEvidenceZip(f, findings, stage, now, renderer)
 	syncErr := f.Sync()
 	closeErr := f.Close()
 	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {

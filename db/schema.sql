@@ -1384,3 +1384,13 @@ CREATE INDEX IF NOT EXISTS idx_notification_deliveries_batch
     ON notification_deliveries(batch_id) WHERE batch_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_channel
     ON notification_deliveries(channel_id, id DESC);
+
+-- Report template bodies are copied into tasks at creation, never referenced live.
+CREATE TABLE IF NOT EXISTS report_templates (
+ id BIGSERIAL PRIMARY KEY,
+ name TEXT NOT NULL,
+ body TEXT NOT NULL,
+ is_default BOOLEAN NOT NULL DEFAULT false
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_report_templates_default ON report_templates(is_default) WHERE is_default;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS report_template_body TEXT NOT NULL DEFAULT '';

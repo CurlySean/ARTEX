@@ -7,6 +7,7 @@ import type { ChatMention } from "@/lib/chat-mentions";
 import { MOCK } from "@/lib/mock/enabled";
 import { mockHandle } from "@/lib/mock/handler";
 import type {
+  ReportTemplate,
   ActiveFindingRetest,
   Activity,
   Agent,
@@ -259,9 +260,11 @@ export const api = {
     seedFirstIntent?: boolean;
     planHeartbeatSeconds?: number;
     coverageEnabled?: boolean;
+    reportTemplateId?: number;
     interceptRules?: AssetInterceptRuleInput[];
   }) =>
     post<Task>("/tasks", {
+      report_template_id: input.reportTemplateId,
       name: input.name ?? "",
       category_id: input.categoryId ?? null,
       description: input.description,
@@ -290,6 +293,12 @@ export const api = {
       task_ids: taskIds,
       category_id: categoryId ?? null,
     }),
+  reportTemplates: () => MOCK ? Promise.resolve({ templates: [] as ReportTemplate[], starter: "" }) : get<{ templates: ReportTemplate[]; starter: string }>("/report-templates"),
+  createReportTemplate: (input: { name: string; body: string }) => reportTemplateWrite(() => post<ReportTemplate>("/report-templates", input)),
+  updateReportTemplate: (id: number, input: { name: string; body: string }) => reportTemplateWrite(() => put<ReportTemplate>(`/report-templates/${id}`, input)),
+  deleteReportTemplate: (id: number) => reportTemplateWrite(() => del(`/report-templates/${id}`)),
+  defaultReportTemplate: (id: number) => reportTemplateWrite(() => put(`/report-templates/${id}/default`, {})),
+  previewReportTemplate: (body: string, kind: "task" | "findings" | "single" = "findings") => reportTemplateWrite(() => post<{ markdown: string }>("/report-templates/preview", { body, kind })),
   taskTemplates: () => get<{ templates: TaskTemplate[] }>("/task-templates").then((r) => arr(r.templates)),
   createTaskTemplate: (
     input: Pick<TaskTemplate, "name" | "description" | "goal" | "category_id" | "intercept_rules">,
@@ -563,8 +572,10 @@ export const api = {
     scope: "filtered" | "all" | "selected";
     filters?: Omit<FindingQuery, "page" | "pageSize">;
     ids?: string[];
+    reportTemplateId?: number;
   }) => {
     const p = new URLSearchParams({ format: opts.format, scope: opts.scope });
+    if (opts.reportTemplateId !== undefined) p.set("report_template_id", String(opts.reportTemplateId));
     if (opts.scope === "selected") {
       p.set("ids", (opts.ids ?? []).join(","));
     } else if (opts.scope === "filtered" && opts.filters) {
@@ -574,7 +585,7 @@ export const api = {
     const r = await fetch(`/api/exploration/findings/export?${p.toString()}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (!r.ok) throw new Error(`export: ${r.status}`);
+    if (!r.ok) throw new Error(await responseError(r));
     const blob = await r.blob();
     // 文件名优先取后端 Content-Disposition,取不到则用默认名。
     const disp = r.headers.get("Content-Disposition") ?? "";
@@ -825,8 +836,7 @@ export const api = {
   // 渠道是多实例资源（同一类型可配多个机器人、各有过滤规则），因此独立成组，
   // 不塞进扁平的 settings 键值里。
   notifyMeta: () => get<NotificationMeta>(`/notify/meta`),
-  notifyChannels: () =>
-    get<{ channels: NotificationChannel[] }>(`/notify/channels`).then((r) => arr(r.channels)),
+  notifyChannels: () => get<{ channels: NotificationChannel[] }>(`/notify/channels`).then((r) => arr(r.channels)),
   notifyCreateChannel: (payload: {
     name: string;
     kind: string;
@@ -869,7 +879,7 @@ export const api = {
     const r = await fetch(`/api/report${tq(task)}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (!r.ok) throw new Error(`report: ${r.status}`);
+    if (!r.ok) throw new Error(await responseError(r));
     return r.text();
   },
   chatMentions: (kind: string, query: string, signal?: AbortSignal, cursor = "") =>
@@ -1314,3 +1324,18 @@ export const api = {
   applyUpdate: () => post<{ ok: boolean; target: string }>(`/update/apply`),
   rollbackUpdate: () => post<{ ok: boolean }>(`/update/rollback`),
 };
+
+async function responseError(response: Response): Promise<string> {
+  const text = await response.text();
+  try {
+    const data = JSON.parse(text);
+    return data.error || data.message || text || `HTTP ${response.status}`;
+  } catch {
+    return text || `HTTP ${response.status}`;
+  }
+}
+
+function reportTemplateWrite<T>(request: () => Promise<T>): Promise<T> {
+  if (MOCK) return Promise.reject(new Error("演示模式不支持报告模板管理，请在本地部署中使用。"));
+  return request();
+}

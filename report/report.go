@@ -14,6 +14,8 @@ import (
 
 // Input bundles what the report needs.
 type Input struct {
+	// TaskName is used by custom templates; legacy Markdown keeps Title unchanged.
+	TaskName    string
 	Title       string
 	Goal        string
 	GeneratedAt time.Time
