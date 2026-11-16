@@ -113,13 +113,14 @@ def upstream_proxy_env(environ=None):
 
 
 def cmd_start(a):
+    page = '/yakit?' if getattr(a, 'style', 'burp') == 'yakit' else '/repeater?'
     st = load_state()
     wanted = upstream_proxy_env()
     if health(st) and st.get('upstream_proxy', '') == wanted:
         live = int(st['port'])
         if a.port not in (None, '') and valid_port(a.port) != live:
             raise ValueError('weburp 已在端口 %d 运行（%s）；请使用该端口或先 stop' % (live, st['url']))
-        if not getattr(a, 'quiet', False): print(st['url'])
+        if not getattr(a, 'quiet', False): print(st['url'].replace('/repeater?', page, 1))
         return 0
     if health(st) and st.get('upstream_proxy', '') != wanted:
         cmd_stop(argparse.Namespace())
@@ -144,7 +145,7 @@ def cmd_start(a):
         if child.poll() is not None: break
         if health(value):
             write_state(value)
-            if not getattr(a, 'quiet', False): print(value['url'])
+            if not getattr(a, 'quiet', False): print(value['url'].replace('/repeater?', page, 1))
             return 0
         time.sleep(.25)
     if child.poll() is None: child.terminate()
@@ -252,8 +253,8 @@ def scene_url(value):
     if len(value) > 16384 or u.scheme not in ('http', 'https') or u.hostname not in ('127.0.0.1', 'localhost') or u.username or u.password:
         raise ValueError('截图仅接受本机 weburp 场景 URL')
     valid_port(u.port or (443 if u.scheme == 'https' else 80))
-    if u.path not in ('/repeater', '/terminal'):
-        raise ValueError('截图页面必须是 /repeater 或 /terminal')
+    if u.path not in ('/repeater', '/terminal', '/yakit', '/yakit/terminal'):
+        raise ValueError('截图页面必须是 /repeater、/terminal、/yakit 或 /yakit/terminal')
     q = parse_qs(u.query)
     if q.get('scene') and re.fullmatch(r'[A-Za-z0-9_-]+', q['scene'][0]): return u
     if u.path == '/terminal' and re.fullmatch(r'd=[A-Za-z0-9_-]+', u.fragment): return u
@@ -447,6 +448,8 @@ def post_scene(st, scene):
 
 
 def cmd_capture(a):
+    style = getattr(a, 'style', 'burp')
+    theme = getattr(a, 'theme', 'light')
     st = ensure_started()
     ai = []
     if a.ai_action:
@@ -485,6 +488,8 @@ def cmd_capture(a):
         if not entries:
             raise ValueError('terminal 截图需要 --entry 或 --entries-file')
         scene = {'type': 'terminal', 'shell': a.shell or 'cmd', 'banner': True, 'entries': entries}
+        if a.name:
+            scene['name'] = a.name
         if ai:
             scene['ai'] = ai
         sid = post_scene(st, scene)
@@ -492,8 +497,12 @@ def cmd_capture(a):
         extra = '&cursor=0'
     else:
         raise ValueError('kind 必须是 repeater 或 terminal')
+    if style == 'yakit':
+        page = 'yakit/terminal' if a.kind == 'terminal' else 'yakit'
+        extra += '&theme=' + theme
+    zoom = a.zoom or ('1' if style == 'yakit' else '1.6')
     url = 'http://127.0.0.1:%d/%s?scene=%s&token=%s&zoom=%s%s' % (
-        int(st['port']), page, sid, st['token'], a.zoom or '1.6', extra)
+        int(st['port']), page, sid, st['token'], zoom, extra)
     size = a.size or ('1100x650' if a.kind == 'terminal' else '1920x1080')
     return cmd_shot(argparse.Namespace(url=url, out=a.out, size=size, budget=a.budget if a.budget is not None else 8000))
 
@@ -512,7 +521,7 @@ def cmd_doctor(a):
 
 def main():
     ap = argparse.ArgumentParser(prog='weburp.py'); sub = ap.add_subparsers(dest='cmd', required=True)
-    p = sub.add_parser('start'); p.add_argument('--port', type=int); p.add_argument('--token'); p.set_defaults(f=cmd_start)
+    p = sub.add_parser('start'); p.add_argument('--port', type=int); p.add_argument('--token'); p.add_argument('--style', choices=['burp', 'yakit'], default='burp'); p.set_defaults(f=cmd_start)
     sub.add_parser('stop').set_defaults(f=cmd_stop)
     p = sub.add_parser('status'); p.add_argument('--json', action='store_true'); p.set_defaults(f=cmd_status)
     p = sub.add_parser('api', help='调用已认证的本机 /api/... 接口')
@@ -529,11 +538,13 @@ def main():
     p.add_argument('--response', help='原始 HTTP 响应文件（repeater；省略则页面 &send=1 实发）')
     p.add_argument('--host'); p.add_argument('--port', type=int); p.add_argument('--tls', action='store_true')
     p.add_argument('--name', help='场景名')
+    p.add_argument('--style', choices=['burp', 'yakit'], default='burp', help='界面风格；默认保留 Burp')
+    p.add_argument('--theme', choices=['light', 'dark'], default='light', help='Yakit 界面主题')
     p.add_argument('--shell', default='cmd', help='terminal 外壳：cmd / ps / bash')
     p.add_argument('--entry', action='append', default=[], help='terminal 条目 cwd|||cmd|||output|||exit，可重复')
     p.add_argument('--entries-file', dest='entries_file', help='terminal 条目 JSON 数组文件')
     p.add_argument('--ai-action', dest='ai_action'); p.add_argument('--ai-note', dest='ai_note'); p.add_argument('--ai-success', dest='ai_success')
-    p.add_argument('--size', default=None); p.add_argument('--budget', type=int, default=8000); p.add_argument('--zoom', default='1.6')
+    p.add_argument('--size', default=None); p.add_argument('--budget', type=int, default=8000); p.add_argument('--zoom', default=None)
     p.set_defaults(f=cmd_capture)
     a = ap.parse_args()
     try: return a.f(a)
@@ -542,7 +553,7 @@ def main():
 
 
 if __name__ == '__main__':
-    if os.environ.get("ARTEX_WEBURP_RENDERER") == "1":
+    if os.environ.get('ARTEX_WEBURP_RENDERER') == '1' or (Path('/app/artex').exists() and (TOOL / 'artex_renderer.py').exists()):
         from artex_renderer import configure
         configure(sys.modules[__name__])
     sys.exit(main())

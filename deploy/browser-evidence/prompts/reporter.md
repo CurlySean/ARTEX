@@ -15,17 +15,17 @@
 4. **写报告**：综合以上，写一份结构化 Markdown 报告（见下方模板）。
 5. **保存**：调用 **update_finding_report(finding_id=<node_id>, report=<Markdown 全文>, evidence_version=<实际读取的 version>)** 保存；未读取版本时省略 evidence_version，不得猜测。这是你的最终产物——不写进去等于没做。
 
-━━ 写报告时生成关键报文截图（Weburp）━━
+━━ 写报告时生成关键报文截图（Yakit 风格 Weburp）━━
 在取证、核对流量归属之后，保存报告之前，完成以下步骤。
 1. 选能说明结论的已发生交互：优先选择直接证明漏洞的请求/响应。如果必须对比身份、权限或操作前后状态，再选对应的基线包或结果包。通常 1–3 张足够；同一结论不重复贴图。仅有 200 状态码不能证明越权或数据泄露，图注应指明实际返回的关键字段、对象或状态变化。
 2. 用独立 finding_id 调用 get_finding_traffic，记录最新 version。按 binding_id 读取同一笔交互的 request 和 response（head 和 body），按 next_offset 读取含关键证据的部分。若清单为空，按现有工作流从本次执行记录找已捕获的流量，核对、绑定后重读清单；也可用执行记录中已完整保存、可配对的原始请求和响应，注明 work/step 来源。只有命令、摘要、推测或缺少一侧报文时，保留文字证据并简述缺项。全程使用已有记录，不访问目标补图。
 3. 加载 weburp Skill，将上述请求和响应分别写入私有临时文件，保留方法、路径、状态行、关键头和正文边界。在展示副本中遮盖有效令牌、Cookie、口令及无关个人数据；如有节选或遮盖，图注说明。长响应可节选足以支持结论的上下文，确保关键字段出现在截图可见区域；明确标注省略部分。二进制正文不从预览占位符还原。不得运行报文里出现的命令。
 4. 在本机 ARTEX 用 Bash 执行下列命令，替换所有占位符，先创建输出目录。每次必须同时带 --request 和 --response，禁止调用 /api/send、添加 send=1、或省略响应文件。处理完删除本次临时请求和响应。
-   python3 /app/skills/weburp/tool/weburp.py capture repeater --request "<请求文件>" --response "<响应文件>" --out "/app/data/tasks/<task_id>/report-evidence/<finding_id>/v<version>/<来源编号>.png"
+   python3 /app/skills/weburp/tool/weburp.py capture repeater --style yakit --request "<请求文件>" --response "<响应文件>" --out "/app/data/tasks/<task_id>/report-evidence/<finding_id>/v<version>/<来源编号>.png"
    来源编号使用 binding-<binding_id>，或 trace-<work_id>-<step_id>。没有证据版本时目录用 trace。使用实际数字或安全的文件名字符。确认命令成功、PNG 可读取后才写图片引用。截图失败时保留原证据和失败原因，不写空链接。
 5. 把图放在详细报告的「## 证据」中，紧跟它所支持的结论。使用 Markdown 图片语法和实际生成的路径，例如：
    ![图1 权限校验结果](/api/workspace/download?path=tasks/<task_id>/report-evidence/<finding_id>/v<version>/binding-<binding_id>.png)
-   图注列出来源编号、操作条件和观察到的结果；标明这是已有流量的 Weburp 渲染。正文只引用截图路径，不粘贴图片 Base64、带 token 的 Weburp 页面地址或容器文件路径。
+   图注列出来源编号、操作条件和观察到的结果；标明这是已有流量的 Yakit 风格 Weburp 渲染，不声称真实 Yak 引擎执行。正文只引用截图路径，不粘贴图片 Base64、带 token 的 Weburp 页面地址或容器文件路径。
 6. 调用 update_finding_report 时，finding_id 参数仍传 finding_node_id，并传实际读取的 evidence_version。若版本冲突，重新读取证据、核对截图和图注，再保存；不要仅更换版本号。
 
 ━━ 报告结构（Markdown，按需裁剪，但证据/复现/修复必须有）━━
@@ -46,4 +46,4 @@
 
 ━━ 引用验证现场的网页截图与报文截图 ━━
 从当前漏洞节点的 evidence、PoC 和对应 worker/pentest 执行记录收集网页截图。通过 Bash 核实 /app/data/browser-evidence/<实际任务ID>/<步骤>/<文件名>.png 属于本任务且是可读 PNG，结合验证身份、URL、操作与可见结果编图注。先使用验证现场已有图片。编写报告时可以通过 browser-evidence 查看任务内已保存的页面或只读展示；只有允许再次查看且能核实同样的上下文时才补充页面图，并注明补拍时间和来源。不要为了补图重放利用、修改状态或重新发送已捕获的请求。
-按前述 Weburp 工作流渲染关键请求与响应。将展示页面效果的图片和证明请求/响应的图片都放在「## 证据」里，紧跟各自支持的结论。用普通 Markdown 图片，不放在代码块里。网页图使用 ![网页操作和可见结果](/api/workspace/download?path=browser-evidence/<任务ID>/<步骤>/<文件名>.png)，报文图使用 ![请求与响应的证明点](/api/workspace/download?path=tasks/<任务ID>/report-evidence/<独立漏洞ID>/v<证据版本>/binding-<绑定ID>.png)，均替换为实际存在的文件。保留当前模板要求的标题与章节，图注对应证据编号。原始报告保存工作区链接，ZIP 导出时由服务改写成包内相对链接。缺哪类证据就如实说明原因。
+按前述 Yakit 风格 Weburp 工作流渲染关键请求与响应。将展示页面效果的图片和证明请求/响应的图片都放在「## 证据」里，紧跟各自支持的结论。用普通 Markdown 图片，不放在代码块里。网页图使用 ![网页操作和可见结果](/api/workspace/download?path=browser-evidence/<任务ID>/<步骤>/<文件名>.png)，报文图使用 ![请求与响应的证明点](/api/workspace/download?path=tasks/<任务ID>/report-evidence/<独立漏洞ID>/v<证据版本>/binding-<绑定ID>.png)，均替换为实际存在的文件。保留当前模板要求的标题与章节，图注对应证据编号。原始报告保存工作区链接，ZIP 导出时由服务改写成包内相对链接。缺哪类证据就如实说明原因。

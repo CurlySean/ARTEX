@@ -53,6 +53,25 @@ class API:
             raise RuntimeError(f"{method} {path} 返回 HTTP {error.code}") from error
 
 
+def upgrade_yakit_prompt(prompt):
+    replacements = {
+        "━━ 写报告时生成关键报文截图（Weburp）━━": "━━ 写报告时生成关键报文截图（Yakit 风格 Weburp）━━",
+        "这是已有流量的 Weburp 渲染。": "这是已有流量的 Yakit 风格 Weburp 渲染，不声称真实 Yak 引擎执行。",
+        "按前述 Weburp 工作流": "按前述 Yakit 风格 Weburp 工作流",
+    }
+    for old, new in replacements.items():
+        prompt = prompt.replace(old, new)
+
+    def set_style(match):
+        command = match.group()
+        style = r"--style(?:[ \t]+|=)(?:burp|yakit)\b"
+        if re.search(style, command):
+            return re.sub(style, "--style yakit", command)
+        return re.sub(r"\bcapture[ \t]+repeater\b", "capture repeater --style yakit", command, count=1)
+
+    return re.sub(r"weburp\.py[ \t]+capture[ \t]+repeater(?:[^\n\\]|\\[^\n]|\\\n)*", set_style, prompt)
+
+
 def install_prompt(api, role, mid):
     path = "agents/" + role
     snapshot = (HERE / "prompts" / (role + ".md")).read_text(encoding="utf-8").rstrip()
@@ -64,13 +83,14 @@ def install_prompt(api, role, mid):
     if base == current:
         updated = snapshot
     else:
-        missing = [s for s in additions if s.splitlines()[0] not in current.splitlines()]
-        updated = "\n\n".join([current, *missing])
+        upgraded = upgrade_yakit_prompt(current)
+        missing = [s for s in additions if s.splitlines()[0] not in upgraded.splitlines()]
+        updated = "\n\n".join([upgraded, *missing])
     if updated != current:
         preview = api.call("POST", path + "/prompt/preview", {"template": updated})
         if preview.get("error") or not preview.get("rendered"):
             raise RuntimeError(f"{role} 提示词预览失败")
-        api.call("PUT", path + "/prompt", {"template": updated, "note": "安装浏览器和 Weburp 报告取证"})
+        api.call("PUT", path + "/prompt", {"template": updated, "note": "安装浏览器和 Yakit 风格报告取证"})
     visibility = api.call("GET", path + "/visibility")
     bindings = {"mcp": visibility.get("mcp") or [], "skill": visibility.get("skill") or []}
     if mid not in bindings["mcp"] or "weburp" not in bindings["skill"]:

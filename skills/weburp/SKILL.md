@@ -1,11 +1,11 @@
 ---
 name: weburp
-description: Operate a local Web Repeater and terminal-evidence service through its loopback HTTP API. Use for authorized HTTP request replay, raw request/response visualization, terminal transcript rendering, and evidence screenshots; do not use for targets without explicit permission.
+description: 通过仅本机 HTTP API 操作 Weburp，默认使用 Yakit 模式完成授权的 HTTP 请求重放、原始请求/响应展示、终端记录渲染及证据截图。仅在用户明确要求时切换 Burp 模式，不用于未授权目标。
 ---
 
 # Weburp
 
-Weburp is a cross-platform local service that provides a Burp-style Repeater page, a terminal transcript page, a byte-preserving HTTP sender, scene storage, and verified browser screenshots.
+Weburp 是跨平台本地服务，提供请求重放、终端记录展示、保留原始字节的 HTTP 发送、场景存储及经校验的浏览器截图。本 skill 默认选择 Yakit 风格界面，同时保留 Burp 兼容模式。
 
 The implementation is in this skill directory:
 
@@ -24,13 +24,20 @@ Resolve `<skill_dir>` from the loaded skill. Do not assume the skill is installe
 
 Use request replay only when the user owns the target or has explicitly confirmed authorization. Keep the Weburp service bound to loopback. Do not expose its port or token to a LAN or public interface.
 
+## 默认界面
+
+- 用户未指定风格时，`start`、`capture repeater` 和 `capture terminal` 必须显式传入 `--style yakit`，默认使用 Yakit 模式。
+- 只有用户明确要求 Burp 风格时，才改用 `--style burp`。CLI 为兼容旧用法仍默认 Burp，因此不能省略 `--style` 并假定它会使用 Yakit。
+- 页面地址使用 `start --style yakit` 的输出；请求/响应页面为 `/yakit`，终端记录页面为 `/yakit/terminal`。两者沿用相同的 Token 鉴权与场景 API。
+- 未指定主题与缩放时，使用 Yakit 的浅色主题和缩放 1；用户指定的主题、缩放或截图尺寸优先。
+
 ## API-first workflow
 
 Use the controller to start the service and call its HTTP API at `http://127.0.0.1:<port>`:
 
 ```bash
 PYTHON=python3                       # Windows commonly uses: python
-"$PYTHON" <skill_dir>/tool/weburp.py start
+"$PYTHON" <skill_dir>/tool/weburp.py start --style yakit
 "$PYTHON" <skill_dir>/tool/weburp.py status --json
 "$PYTHON" <skill_dir>/tool/weburp.py api GET /api/health
 ```
@@ -76,24 +83,24 @@ Prefer `capture` for the common case because it starts the service, creates the 
 
 ```bash
 # Existing request and response: render only; do not resend.
-"$PYTHON" <skill_dir>/tool/weburp.py capture repeater \
+"$PYTHON" <skill_dir>/tool/weburp.py capture repeater --style yakit \
   --request request.txt --response response.txt \
   --out /absolute/path/evidence.png --host 127.0.0.1 --port 8080
 
 # Request only: Weburp sends it once before capture.
-"$PYTHON" <skill_dir>/tool/weburp.py capture repeater \
+"$PYTHON" <skill_dir>/tool/weburp.py capture repeater --style yakit \
   --request request.txt --out /absolute/path/evidence.png \
   --host 127.0.0.1 --port 8080
 
 # Terminal transcript.
-"$PYTHON" <skill_dir>/tool/weburp.py capture terminal \
+"$PYTHON" <skill_dir>/tool/weburp.py capture terminal --style yakit \
   --out /absolute/path/terminal.png --shell bash \
   --entry '/tmp|||whoami|||analyst|||0'
 ```
 
 For multiple terminal entries, use `--entries-file` with a JSON array containing `cwd`, `cmd`, `output`, and `exit`.
 
-Use `shot` only when a scene already exists and custom URL parameters or dimensions are needed. Screenshots accept only local Weburp scene URLs.
+仅在场景已经存在、需要自定义 URL 参数或尺寸时使用 `shot`。默认向它传入本机 `/yakit` 或 `/yakit/terminal` 场景 URL；`shot` 不接受 `--style`，风格由 URL 路径决定。截图仅接受本机 Weburp 场景地址。
 
 ## Runtime notes
 
@@ -105,6 +112,16 @@ Use `shot` only when a scene already exists and custom URL parameters or dimensi
 - Run `weburp.py doctor` to verify the browser and bundled CJK font.
 - Stop the local service with `weburp.py stop` when it is no longer needed.
 
+## Yakit 风格界面
+
+- `python weburp.py start --style yakit`：启动或复用同一服务并输出 Yakit 风格地址。
+- 页面为 `/yakit` 和 `/yakit/terminal`，鉴权、场景 API 和仅本机监听的边界不变。
+- 本 skill 的所有 `capture` 截图默认显式使用 `--style yakit`；可追加 `--theme light|dark`。Yakit 模式默认缩放 1，显式选择的 Burp 模式仍默认缩放 1.6。
+- 提供 `--response` 时只渲染，省略时会向授权目标真实发送一次。
+- 终端条目只被渲染，不执行。截图应标注为工具渲染结果，不能据此声称已在真实 Yakit 或终端中完成操作。
+- 没有真实基准截图时，不得声称与手动截取的 Yakit 完全一致；字体、DPI、窗口尺寸和面板状态均影响对齐。
+- 详细用法与许可边界见 `tool/README.md` 和 `tool/assets/yakit/THIRD_PARTY.md`。
+
 ## ARTEX 本机部署
 
-在 ARTEX 的 Bash 工具中运行 `python3 /app/skills/weburp/tool/weburp.py`。例如，`api GET /api/health` 会按需启动并验证服务。使用 `capture repeater` 或 `capture terminal` 时，把 `--out` 设为当前任务工作目录中的 PNG 路径。该命令通过容器内回环接口调用非 root Chromium 渲染器；HTTP 重放仍由 ARTEX 容器内的 Weburp 服务发出。
+在 ARTEX 的 Bash 工具中运行 `python3 /app/skills/weburp/tool/weburp.py`。报告截图显式使用 `capture repeater --style yakit --request ... --response ... --out ...`，只渲染已保存的请求和响应。截图通过容器内回环接口交给独立的 Chromium 渲染器，历史 `weburp` Skill 绑定和证据路径继续可用。

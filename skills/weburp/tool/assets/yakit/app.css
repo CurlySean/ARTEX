@@ -1,0 +1,50 @@
+/* 原版静态外壳使用 native/ 中的源样式；这里只连接 Weburp 的行为与状态。 */
+:root {
+  --bg:var(--Colors-Use-Basic-Background);
+  --panel:var(--Colors-Use-Neutral-Bg);
+  --editor:var(--Colors-Use-Neutral-Bg-Hover);
+  --text:var(--Colors-Use-Neutral-Text-1-Title);
+  --secondary:var(--Colors-Use-Neutral-Text-3-Secondary);
+  --line:var(--Colors-Use-Neutral-Border);
+  --primary:var(--Colors-Use-Main-Primary);
+}
+html,body { width:100%; height:100%; margin:0; overflow:hidden; overscroll-behavior:none; }
+#app,#app>.ant-app { width:100%; height:100%; overflow:hidden; }
+#app [class*="uiLayout-module_ui-layout-wrapper_"] { height:100%; min-height:100%; }
+[hidden] { display:none!important; }
+#workspace { position:relative; min-height:0; min-width:0; }
+.native-editors { display:grid!important; grid-template-columns:minmax(0,1fr) 8px minmax(0,1fr); min-height:0; min-width:0; }
+.native-editors>div { min-width:0; min-height:0; }
+.editor-host { position:relative; min-width:0; min-height:0; }
+#splitter { width:8px; height:100%; cursor:col-resize; touch-action:none; }
+#splitter:focus-visible { outline:1px solid var(--primary); }
+#configToggle.active { color:var(--Colors-Use-Main-On-Primary); background:var(--primary); }
+.ant-tag.selected { color:var(--primary); background:var(--Colors-Use-Main-Bg); }
+.notice,.history,.view-menu { position:fixed; z-index:2000; border:1px solid var(--line); border-radius:4px; background:var(--bg); box-shadow:0 4px 12px #00000014; color:var(--text); font-size:12px; }
+.notice { left:50%; top:90px; transform:translateX(-50%); max-width:80%; padding:10px 16px; border-color:var(--Colors-Use-Error-Border); color:var(--Colors-Use-Error-Primary); }
+.history { width:420px; max-height:420px; overflow:auto; top:260px; left:180px; padding:8px; }
+.history h2 { margin:4px 4px 8px; font-size:12px; }
+.history button,.view-menu button { display:block; width:100%; border:0; background:transparent; color:inherit; font:inherit; padding:8px; text-align:left; cursor:pointer; }
+.history button:hover,.view-menu button:hover { background:var(--panel); }
+.view-menu { width:140px; padding:4px; }
+.advanced { position:absolute; z-index:100; left:26px; top:0; bottom:0; width:300px; padding:12px; overflow:auto; border-right:1px solid var(--line); background:var(--bg); box-shadow:4px 0 12px #00000014; }
+.advanced h2 { font-size:12px; font-weight:600; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
+.advanced button { height:24px; border:1px solid var(--line); border-radius:4px; background:var(--bg); color:var(--text); cursor:pointer; }
+.config-group { border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:16px; }
+.config-group h3 { font-size:12px; margin:0 0 12px; font-weight:500; }
+.config-field { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; color:var(--secondary); font-size:12px; }
+.config-field input,.config-field select { width:100%; height:24px; border:1px solid var(--line); border-radius:4px; background:var(--bg); padding:3px 7px; color:var(--text); font:inherit; }
+.config-inline { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; font-size:12px; }
+.config-note { font-size:11px; line-height:1.8; color:var(--secondary); }
+.response-render { position:absolute; inset:0; width:100%; height:100%; border:0; background:white; }
+.terminal-mode { background:var(--panel); }
+.terminal-mode #workspace,#terminal { width:100%; height:100%; }
+@media(max-width:900px) {
+  #nativeMenu [class*="first-menu-extra-wrapper"] { display:none; }
+  #nativeMenu [class*="tool-wrapper"] { min-width:0; }
+}
+@media(max-width:760px) {
+  .native-editors { grid-template-columns:minmax(0,1fr)!important; grid-template-rows:minmax(0,1fr) 8px minmax(0,1fr); }
+  #splitter { width:100%; height:8px; cursor:row-resize; }
+  .history { left:34px; width:calc(100% - 68px); }
+}

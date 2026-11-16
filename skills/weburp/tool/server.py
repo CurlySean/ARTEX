@@ -7,6 +7,7 @@ import os
 from weburp_paths import state_dir
 import base64
 import json
+import mimetypes
 import re
 import secrets
 import socket
@@ -26,6 +27,9 @@ except Exception:
 
 BASE = Path(__file__).resolve().parent
 STATIC = BASE / "static"
+YAKIT_ASSETS = BASE / "assets" / "yakit"
+YAKIT_FILES = {p.relative_to(YAKIT_ASSETS).as_posix(): p for p in YAKIT_ASSETS.rglob("*")
+               if p.is_file() and not p.is_symlink() and p.suffix in (".js", ".css", ".json", ".ttf", ".woff", ".woff2", ".png", ".svg", ".txt")}
 EVIDENCE = state_dir()
 ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 HDR_CAP = 64 * 1024
@@ -460,6 +464,7 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass  # 客户端中断（如取消发包），静默清理
         safe_path = re.sub(r"([?&]token=)[^&]*", r"\1[redacted]", self.path)
+        safe_path = re.sub(r"(/assets/yakit/)[^/]+/", r"\1[redacted]/", safe_path)
         log(f"{self.command} {safe_path} → {status}")
 
     def _json(self, obj, status=200):
@@ -475,6 +480,10 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(urlparse(self.path).query)
         auth = self.headers.get("Authorization", "")
         tok = q.get("token", [None])[0]
+        # Monaco workers/CSS load relative assets; keep authentication in their private URL prefix.
+        parts = urlparse(self.path).path.split("/", 4)
+        if tok is None and self.command == "GET" and len(parts) == 5 and parts[1:3] == ["assets", "yakit"]:
+            tok = parts[3]
         if tok is None and auth.startswith("Bearer "):
             tok = auth[7:]
         if not tok or not secrets.compare_digest(tok, TOKEN):
@@ -498,8 +507,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             tok = parse_qs(u.query).get("token", [TOKEN])[0]
             self._reply(302, b"", extra={"Location": f"/repeater?token={tok}"})
-        elif path in ("/repeater", "/terminal"):
-            f = STATIC / (path[1:] + ".html")
+        elif path in ("/repeater", "/terminal", "/yakit", "/yakit/terminal"):
+            f = STATIC / ("yakit.html" if path.startswith("/yakit") else path[1:] + ".html")
             if f.is_file():
                 self._reply(200, f.read_bytes(), "text/html; charset=utf-8")
             else:
@@ -513,6 +522,15 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._reply(200, f.read_bytes(), 'font/otf' if font else 'application/javascript; charset=utf-8',
                             {'X-Content-Type-Options':'nosniff', 'Cache-Control':'private, max-age=3600'})
+        elif path.startswith("/assets/yakit/"):
+            relative = path.split("/", 4)[-1]
+            f = YAKIT_FILES.get(relative)
+            if not f or not f.is_file() or f.is_symlink():
+                self._reply(404, "asset not found")
+            else:
+                ctype = "application/javascript" if f.suffix == ".js" else mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+                self._reply(200, f.read_bytes(), ctype,
+                            {"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-cache", "Referrer-Policy": "no-referrer"})
         elif path == "/api/health":
             self._json({"ok": True, "service": "weburp", "pid": os.getpid(), "instance": os.environ.get("WEBURP_INSTANCE_ID", "")})
         elif path == "/api/scene":

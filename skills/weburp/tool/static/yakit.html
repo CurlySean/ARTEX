@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN" data-weburp-ready="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Yakit</title>
+</head>
+<body>
+<div id="app" aria-label="Yakit 风格请求重放工作区"><p role="status">正在加载本地工作区…</p></div>
+<script>
+"use strict";
+window.__ready = false;
+(async function () {
+  const query = new URLSearchParams(location.search);
+  const token = query.get("token") || "";
+  const base = "/assets/yakit/" + encodeURIComponent(token) + "/";
+  window.weburpYakitAssets = base;
+  const css = name => new Promise((resolve, reject) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet"; link.href = base + name;
+    link.onload = resolve; link.onerror = () => reject(new Error("样式加载失败：" + name));
+    document.head.appendChild(link);
+  });
+  const js = name => new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = base + name;
+    script.onload = resolve; script.onerror = () => reject(new Error("脚本加载失败：" + name));
+    document.head.appendChild(script);
+  });
+  const theme = query.get("theme") === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = theme;
+  const layoutResponse = await fetch(base + "native/layout.json");
+  if (!layoutResponse.ok) throw new Error("原版静态外壳加载失败");
+  window.weburpYakitLayout = await layoutResponse.json();
+  await css("native/inline.css");
+  await Promise.all(window.weburpYakitLayout.styles.filter(name => name !== "native/inline.css").map(css));
+  await css("app.css");
+  await js("http-bytes.js");
+  await js("icons.js");
+  if (location.pathname === "/yakit/terminal") {
+    await css("xterm/css/xterm.css");
+    await js("xterm/lib/xterm.js");
+    await js("xterm-fit/lib/addon-fit.js");
+  } else {
+    await js("monaco/min/vs/loader.js");
+    require.config({paths: {vs: base + "monaco/min/vs"}});
+    await new Promise((resolve, reject) => require(["vs/editor/editor.main"], resolve, reject));
+    await js("http-language.js");
+    await js("monaco-theme.js");
+  }
+  await js("app.js");
+})().catch(function (error) {
+  window.__ready = false;
+  document.documentElement.dataset.weburpReady = "error";
+  const box = document.createElement("pre");
+  box.setAttribute("role", "alert"); box.textContent = "工作区加载失败：" + error.message;
+  document.getElementById("app").replaceChildren(box);
+});
+</script>
+</body>
+</html>

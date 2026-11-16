@@ -1,0 +1,10 @@
+{
+  "reference_version": "1.4.9-1109",
+  "packages": {
+    "monaco-editor-0.40.0.tgz": "eada6f050cc316ffc8676323b361c2d5c0f25dfe93ff2c116ab37d96a47d5b47",
+    "yakit-libs-color-1.4.1.tgz": "d9e29344d533db0889123a3755669d719df028ba9e698418ad6f9a774df43f61",
+    "xterm-xterm-5.5.0.tgz": "bd954fa721872170188cc5d7e83e88db3c83c9a18a4e8d24c2783d26491f59d2",
+    "xterm-addon-fit-0.10.0.tgz": "917ac44972453d5eed52edc1e50260c76398ce48cf2290c2e60671102bba0b33",
+    "yakit-libs-yakit-ui-icons-0.2.9.tgz": "28a1c6fdfc18a5ecc77632a1279141244f32211ce04964ef574a92eefceba9c1"
+  }
+}
