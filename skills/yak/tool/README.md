@@ -1,14 +1,14 @@
-# Weburp local HTTP API
+# Yak local HTTP API
 
-Weburp is a local Burp-style Repeater, raw HTTP sender, terminal transcript renderer, and evidence screenshot tool. It runs only on loopback and protects every page and API route with a token.
+Yak provides a local Yakit-style HTTP request editor, raw HTTP sender, terminal transcript renderer, and evidence screenshot tool. It runs only on loopback and protects every page and API route with a token.
 
 ## Start and inspect
 
 ```bash
-python weburp.py start                     # default: 127.0.0.1:8777
-python weburp.py status --json
-python weburp.py api GET /api/health
-python weburp.py stop
+python yak.py start                     # default: 127.0.0.1:8777
+python yak.py status --json
+python yak.py api GET /api/health
+python yak.py stop
 ```
 
 `status --json` returns values similar to:
@@ -28,9 +28,9 @@ python weburp.py stop
 The controller's `api` subcommand automatically reads the token and calls the local HTTP endpoint without using system proxies:
 
 ```bash
-python weburp.py api POST /api/scene --data-file scene.json
-python weburp.py api POST /api/send --data-file send.json
-python weburp.py api DELETE /api/scene/r-123abc
+python yak.py api POST /api/scene --data-file scene.json
+python yak.py api POST /api/send --data-file send.json
+python yak.py api DELETE /api/scene/r-123abc
 ```
 
 A direct HTTP client can use `Authorization: Bearer <token>` or the `?token=<token>` query parameter. Never send the token to a non-loopback host.
@@ -136,30 +136,30 @@ Notes:
 ## Capture commands
 
 ```bash
-python weburp.py capture repeater --request req.txt --response resp.txt --out shot.png --host 127.0.0.1 --port 8080
-python weburp.py capture terminal --out term.png --shell bash --entry '/tmp|||whoami|||analyst|||0'
-python weburp.py shot 'http://127.0.0.1:8777/repeater?scene=<id>&token=<token>&zoom=1.6' out.png
+python yak.py capture repeater --request req.txt --response resp.txt --out shot.png --host 127.0.0.1 --port 8080
+python yak.py capture terminal --out term.png --shell bash --entry '/tmp|||whoami|||analyst|||0'
+python yak.py shot 'http://127.0.0.1:8777/repeater?scene=<id>&token=<token>&zoom=1.6' out.png
 ```
 
 If `capture repeater` omits `--response`, the page sends the request once before capture. If a response is supplied, it only renders the saved evidence.
 
 ## Configuration
 
-- `WEBURP_STATE_DIR` — absolute state directory; default `~/.weburp`.
-- `WEBURP_TOKEN` — optional fixed URL-safe token.
-- `WEBURP_BROWSER` — Chrome, Edge, or Chromium executable.
-- `WEBURP_UPSTREAM_PROXY` — optional HTTP proxy at `127.0.0.1` or `localhost` for non-loopback outbound connections.
+- `YAK_STATE_DIR` — absolute state directory; default `~/.yak`.
+- `YAK_TOKEN` — optional fixed URL-safe token.
+- `YAK_BROWSER` — Chrome, Edge, or Chromium executable.
+- `YAK_UPSTREAM_PROXY` — optional HTTP proxy at `127.0.0.1` or `localhost` for non-loopback outbound connections.
 
-Run `python weburp.py doctor` to verify the browser and bundled CJK font. Install the Python `h2` package to enable HTTP/2; all HTTP/1.x features use the standard library.
+Run `python yak.py doctor` to verify the browser and bundled CJK font. Install the Python `h2` package to enable HTTP/2; all HTTP/1.x features use the standard library.
 
 ## 新增 Yakit 风格
 
-保留原 Burp 模式，默认行为不变。新增模式复用同版本 Monaco 0.40.0、Yakit 默认配色与原版 SVG 图标，并使用 xterm 5.5.0 渲染终端记录。所有前端资源均在本机，不依赖 CDN。
+Yak 入口默认使用 Yakit 模式，复用同版本 Monaco 0.40.0、Yakit 默认配色与原版 SVG 图标，并使用 xterm 5.5.0 渲染终端记录。所有前端资源均在本机，不依赖 CDN。
 
 ```bat
-cd /d C:\AI\goods\weburp\weburp\tool
-python weburp.py doctor
-python weburp.py start --style yakit
+cd /d <skill_dir>\tool
+python yak.py doctor
+python yak.py start --style yakit
 ```
 
 启动命令输出带 Token 的 Yakit 风格页面地址。运行中的同一服务也可访问：
@@ -187,22 +187,22 @@ python weburp.py start --style yakit
 已有请求与响应，只渲染、不重发：
 
 ```bat
-python weburp.py capture repeater --style yakit --request request.txt --response response.txt --name "Web Fuzzer-[1]" --zoom 1 --size 1440x900 --out yakit.png
+python yak.py capture repeater --style yakit --request request.txt --response response.txt --name "Web Fuzzer-[1]" --zoom 1 --size 1440x900 --out yakit.png
 ```
 
 只提供请求时会真实发送一次，因此目标必须已经获得授权：
 
 ```bat
-python weburp.py capture repeater --style yakit --request request.txt --host 127.0.0.1 --port 8080 --out yakit-live.png
+python yak.py capture repeater --style yakit --request request.txt --host 127.0.0.1 --port 8080 --out yakit-live.png
 ```
 
 终端记录：
 
 ```bat
-python weburp.py capture terminal --style yakit --shell ps --entries-file entries.json --name "终端记录" --zoom 1 --size 1100x650 --out terminal.png
+python yak.py capture terminal --style yakit --shell ps --entries-file entries.json --name "终端记录" --zoom 1 --size 1100x650 --out terminal.png
 ```
 
-深色界面追加 `--theme dark`。未指定 `--style` 时仍使用原 Burp 模式；原模式默认缩放 1.6，Yakit 模式默认缩放 1。
+深色界面追加 `--theme dark`。`yak.py` 默认使用 Yakit 模式和缩放 1。
 
 ### 验证与本机示例
 
@@ -213,11 +213,11 @@ python -m unittest discover -s tests -p test_yakit.py -v
 
 `scripts\preview_yakit.py` 可创建独立的 `_verification\state` 目录并启动本机验收服务及受控目标，打印真实页面地址。
 保持它运行时，在另一终端运行 `scripts\capture_yakit_samples.py` 可验证“保存响应渲染、终端记录、真实重放”三种截图流程。
-该脚本启动的验收服务与用户默认的 `~/.weburp` 数据隔离；不应对其使用默认状态目录的 stop 命令。
+该脚本启动的验收服务与用户默认的 `~/.yak` 数据隔离；不应对其使用默认状态目录的 stop 命令。
 
 ### 一致性与证据边界
 
-这是一套 Yakit 风格的 Weburp 适配界面，不是通过真实 Yakit / Yak 引擎操作后生成的截图。HTTP 页复用隔离原版导出的静态结构、生产 CSS 和 SVG，再将编辑器及发送动作接到 Weburp。终端页按原版默认 Console 独立浮窗展示全幅终端，不附加 Web Fuzzer 工具栏；只渲染记录，不执行输入。未接入的插件、扫描器、热加载或完整 Fuzz 引擎不作为可用能力提供。
+这是一套 Yakit 风格的 Yak 适配界面，不是通过真实 Yakit / Yak 引擎操作后生成的截图。HTTP 页复用隔离原版导出的静态结构、生产 CSS 和 SVG，再将编辑器及发送动作接到 Yak。终端页按原版默认 Console 独立浮窗展示全幅终端，不附加 Web Fuzzer 工具栏；只渲染记录，不执行输入。未接入的插件、扫描器、热加载或完整 Fuzz 引擎不作为可用能力提供。
 
 截图校验仅证明页面已渲染、中文字体校验通过、PNG 完整且尺寸正确；不证明导入的终端文字或响应实际发生过。应保留真实原始记录，并在报告中说明截图的生成方式。
 

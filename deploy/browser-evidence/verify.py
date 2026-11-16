@@ -61,8 +61,8 @@ with tempfile.TemporaryDirectory() as folder:
     root = Path(folder)
     (root / "request").write_bytes(b"GET /verify HTTP/1.1\r\nHost: fixture.invalid\r\n\r\n")
     (root / "response").write_bytes(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nARTEX evidence check")
-    subprocess.run(["python3", "/app/skills/weburp/tool/weburp.py", "capture", "repeater",
+    subprocess.run(["python3", "/app/skills/yak/tool/yak.py", "capture", "repeater",
                     "--style", "yakit",
                     "--request", str(root / "request"), "--response", str(root / "response"),
-                    "--out", str(root / "yakit.png")], check=True, stdout=subprocess.DEVNULL)
-    png(root / "yakit.png")
+                    "--out", str(root / "yak.png")], check=True, stdout=subprocess.DEVNULL)
+    png(root / "yak.png")

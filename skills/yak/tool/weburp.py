@@ -75,7 +75,7 @@ def health(st):
         req_headers = {'Authorization': 'Bearer ' + st['token']}
         with loopback_open('http://127.0.0.1:%d/api/health' % int(st['port']), timeout=2, headers=req_headers) as response:
             value = json.loads(response.read(4096))
-        return value.get('service') == 'weburp' and value.get('pid') == st['pid'] and value.get('instance') == st.get('instance') and bool(st.get('instance'))
+        return value.get('service') == 'yak' and value.get('pid') == st['pid'] and value.get('instance') == st.get('instance') and bool(st.get('instance'))
     except (OSError, ValueError, KeyError):
         return False
 
@@ -119,7 +119,7 @@ def cmd_start(a):
     if health(st) and st.get('upstream_proxy', '') == wanted:
         live = int(st['port'])
         if a.port not in (None, '') and valid_port(a.port) != live:
-            raise ValueError('weburp 已在端口 %d 运行（%s）；请使用该端口或先 stop' % (live, st['url']))
+            raise ValueError('Yak 已在端口 %d 运行（%s）；请使用该端口或先 stop' % (live, st['url']))
         if not getattr(a, 'quiet', False): print(st['url'].replace('/repeater?', page, 1))
         return 0
     if health(st) and st.get('upstream_proxy', '') != wanted:
@@ -149,7 +149,7 @@ def cmd_start(a):
             return 0
         time.sleep(.25)
     if child.poll() is None: child.terminate()
-    raise ValueError('weburp 启动未通过健康检查；请查看私有状态目录中的 server.log')
+    raise ValueError('Yak 启动未通过健康检查；请查看私有状态目录中的 server.log')
 
 
 def cmd_stop(a):
@@ -251,7 +251,7 @@ def find_chrome(platform=None, environ=None, which=None, usable=None):
 def scene_url(value):
     u = urlparse(value)
     if len(value) > 16384 or u.scheme not in ('http', 'https') or u.hostname not in ('127.0.0.1', 'localhost') or u.username or u.password:
-        raise ValueError('截图仅接受本机 weburp 场景 URL')
+        raise ValueError('截图仅接受本机 Yak 场景 URL')
     valid_port(u.port or (443 if u.scheme == 'https' else 80))
     if u.path not in ('/repeater', '/terminal', '/yakit', '/yakit/terminal'):
         raise ValueError('截图页面必须是 /repeater、/terminal、/yakit 或 /yakit/terminal')
@@ -323,7 +323,7 @@ def cmd_shot(a):
     if health(live):
         url_port = parsed.port or (443 if parsed.scheme == 'https' else 80)
         if int(live['port']) != url_port:
-            raise ValueError('截图 URL 端口 %s 与运行中的 weburp %s 不一致；请重新 capture 或先 stop' % (url_port, live['port']))
+            raise ValueError('截图 URL 端口 %s 与运行中的 Yak %s 不一致；请重新 capture 或先 stop' % (url_port, live['port']))
     m = re.fullmatch(r'(\d{2,4})x(\d{2,4})', a.size)
     if not m: raise ValueError('size 应为 宽x高')
     width, height = map(int, m.groups())
@@ -424,7 +424,7 @@ def ensure_started():
     cmd_start(Args())
     st = load_state()
     if not health(st):
-        raise ValueError('weburp 未能启动；请查看状态目录中的 server.log')
+        raise ValueError('Yak 未能启动；请查看状态目录中的 server.log')
     return st
 
 
@@ -520,7 +520,7 @@ def cmd_doctor(a):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog='weburp.py'); sub = ap.add_subparsers(dest='cmd', required=True)
+    ap = argparse.ArgumentParser(prog=Path(sys.argv[0]).name); sub = ap.add_subparsers(dest='cmd', required=True)
     p = sub.add_parser('start'); p.add_argument('--port', type=int); p.add_argument('--token'); p.add_argument('--style', choices=['burp', 'yakit'], default='burp'); p.set_defaults(f=cmd_start)
     sub.add_parser('stop').set_defaults(f=cmd_stop)
     p = sub.add_parser('status'); p.add_argument('--json', action='store_true'); p.set_defaults(f=cmd_status)
@@ -553,7 +553,7 @@ def main():
 
 
 if __name__ == '__main__':
-    if os.environ.get('ARTEX_WEBURP_RENDERER') == '1' or (Path('/app/artex').exists() and (TOOL / 'artex_renderer.py').exists()):
+    if os.environ.get('ARTEX_YAK_RENDERER') == '1' or (Path('/app/artex').exists() and (TOOL / 'artex_renderer.py').exists()):
         from artex_renderer import configure
         configure(sys.modules[__name__])
     sys.exit(main())

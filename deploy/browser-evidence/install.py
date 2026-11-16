@@ -72,6 +72,26 @@ def upgrade_yakit_prompt(prompt):
     return re.sub(r"weburp\.py[ \t]+capture[ \t]+repeater(?:[^\n\\]|\\[^\n]|\\\n)*", set_style, prompt)
 
 
+def upgrade_yak_prompt(prompt):
+    prompt = upgrade_yakit_prompt(prompt)
+    replacements = {
+        "━━ 写报告时生成关键报文截图（Yakit 风格 Weburp）━━": "━━ 写报告时生成关键报文截图（Yak）━━",
+        "加载 weburp Skill": "加载 yak Skill",
+        "/app/skills/weburp/tool/weburp.py": "/app/skills/yak/tool/yak.py",
+        "这是已有流量的 Yakit 风格 Weburp 渲染，不声称真实 Yak 引擎执行。": "这是已有流量在 Yak 界面的渲染，不代表重新发送。",
+        "按前述 Yakit 风格 Weburp 工作流": "按前述 Yak 截图工作流",
+        "带 token 的 Weburp 页面地址": "带 token 的本机页面地址",
+    }
+    for old, new in replacements.items():
+        prompt = prompt.replace(old, new)
+    return prompt
+
+
+def migrate_yak_visibility(visibility):
+    skills = ["yak" if name == "weburp" else name for name in (visibility.get("skill") or [])]
+    return {"mcp": list(visibility.get("mcp") or []), "skill": list(dict.fromkeys(skills))}
+
+
 def install_prompt(api, role, mid):
     path = "agents/" + role
     snapshot = (HERE / "prompts" / (role + ".md")).read_text(encoding="utf-8").rstrip()
@@ -83,27 +103,47 @@ def install_prompt(api, role, mid):
     if base == current:
         updated = snapshot
     else:
-        upgraded = upgrade_yakit_prompt(current)
+        upgraded = upgrade_yak_prompt(current)
         missing = [s for s in additions if s.splitlines()[0] not in upgraded.splitlines()]
         updated = "\n\n".join([upgraded, *missing])
     if updated != current:
         preview = api.call("POST", path + "/prompt/preview", {"template": updated})
         if preview.get("error") or not preview.get("rendered"):
             raise RuntimeError(f"{role} 提示词预览失败")
-        api.call("PUT", path + "/prompt", {"template": updated, "note": "安装浏览器和 Yakit 风格报告取证"})
+        api.call("PUT", path + "/prompt", {"template": updated, "note": "安装浏览器和 Yak 报告取证"})
     visibility = api.call("GET", path + "/visibility")
-    bindings = {"mcp": visibility.get("mcp") or [], "skill": visibility.get("skill") or []}
-    if mid not in bindings["mcp"] or "weburp" not in bindings["skill"]:
-        if mid not in bindings["mcp"]:
-            bindings["mcp"].append(mid)
-        if "weburp" not in bindings["skill"]:
-            bindings["skill"].append("weburp")
+    bindings = migrate_yak_visibility(visibility)
+    if mid not in bindings["mcp"]:
+        bindings["mcp"].append(mid)
+    if "yak" not in bindings["skill"]:
+        bindings["skill"].append("yak")
+    if bindings != {"mcp": visibility.get("mcp") or [], "skill": visibility.get("skill") or []}:
         api.call("PUT", path + "/visibility", bindings)
     actual = api.call("GET", path + "/visibility")
     if (api.call("GET", path)["prompt"].rstrip() != updated
             or any(set(actual[key]) != set(values) for key, values in bindings.items())):
         raise RuntimeError(f"{role} 配置回读不一致")
     print(f"{role} 提示词和工具绑定已核验")
+
+
+def migrate_other_agent_skills(api):
+    for agent in api.call("GET", "agents")["agents"]:
+        role = agent["key"]
+        if role in ("worker", "pentest", "reporter"):
+            continue
+        path = "agents/" + role
+        current_prompt = api.call("GET", path)["prompt"]
+        updated_prompt = upgrade_yak_prompt(current_prompt)
+        if updated_prompt != current_prompt:
+            preview = api.call("POST", path + "/prompt/preview", {"template": updated_prompt})
+            if preview.get("error") or not preview.get("rendered"):
+                raise RuntimeError(f"{role} 提示词预览失败")
+            api.call("PUT", path + "/prompt", {"template": updated_prompt, "note": "迁移 Yak Skill"})
+        visibility_path = path + "/visibility"
+        current = api.call("GET", visibility_path)
+        updated = migrate_yak_visibility(current)
+        if updated != {"mcp": current.get("mcp") or [], "skill": current.get("skill") or []}:
+            api.call("PUT", visibility_path, updated)
 
 
 def configure_mcp(api):
@@ -122,6 +162,18 @@ def configure_mcp(api):
         raise RuntimeError("MCP 工具发现缺少导航、点击或截图能力")
     for role in ("worker", "pentest", "reporter"):
         install_prompt(api, role, mid)
+    migrate_other_agent_skills(api)
+
+
+def remove_legacy_renderer():
+    project = json.loads(compose("config", "--format", "json", capture=True))["name"]
+    ids = subprocess.check_output([
+        "docker", "ps", "-aq",
+        "--filter", f"label=com.docker.compose.project={project}",
+        "--filter", "label=com.docker.compose.service=weburp-renderer",
+    ], text=True).splitlines()
+    for container_id in ids:
+        subprocess.run(["docker", "rm", "-f", container_id], check=True, stdout=subprocess.DEVNULL)
 
 
 def main():
@@ -148,9 +200,10 @@ def main():
             "-m", "0755", "/app/data/browser-evidence")
     ca = ROOT / "data/traffic/_ca/mitmproxy-ca-cert.pem"
     wait_for(lambda: ca.is_file() and ca.stat().st_size, "ARTEX 流量代理 CA")
-    compose("up", "-d", "--no-build", "--wait", "artex-browser", "weburp-renderer")
+    compose("up", "-d", "--no-build", "--wait", "artex-browser", "yak-renderer")
+    remove_legacy_renderer()
     configure_mcp(api)
-    compose("exec", "-T", "artex", "python3", "/app/skills/weburp/tool/weburp.py", "doctor")
+    compose("exec", "-T", "artex", "python3", "/app/skills/yak/tool/yak.py", "doctor")
 
 
 if __name__ == "__main__":

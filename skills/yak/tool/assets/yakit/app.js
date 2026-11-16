@@ -97,7 +97,7 @@
     document.querySelectorAll("button:not([id])").forEach(button => {
       if (!button.dataset.view && !button.dataset.action) {
         button.setAttribute("aria-disabled","true");
-        button.title = "静态参考控件：Weburp 未接入此功能";
+        button.title = "静态参考控件：此功能未接入";
       }
     });
     document.querySelectorAll("#nativeMenu textarea,#nativeMenu input").forEach(input => {

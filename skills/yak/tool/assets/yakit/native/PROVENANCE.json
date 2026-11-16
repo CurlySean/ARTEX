@@ -70,5 +70,5 @@
     "KaTeX_Typewriter-Regular-C0xS9mPB.woff",
     "KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf"
   ],
-  "note": "仅静态 HTML、样式与图标；编辑器、报文、连接状态及所有动作由 Weburp 重新绑定。"
+  "note": "仅静态 HTML、样式与图标；编辑器、报文、连接状态及所有动作由 Yak 本地适配服务重新绑定。"
 }

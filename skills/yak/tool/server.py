@@ -532,7 +532,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._reply(200, f.read_bytes(), ctype,
                             {"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-cache", "Referrer-Policy": "no-referrer"})
         elif path == "/api/health":
-            self._json({"ok": True, "service": "weburp", "pid": os.getpid(), "instance": os.environ.get("WEBURP_INSTANCE_ID", "")})
+            self._json({"ok": True, "service": "yak", "pid": os.getpid(), "instance": os.environ.get("WEBURP_INSTANCE_ID", "")})
         elif path == "/api/scene":
             scenes = []
             for f in sorted(EVIDENCE.glob("*.json")):

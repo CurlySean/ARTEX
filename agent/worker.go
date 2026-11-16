@@ -269,7 +269,7 @@ func workerArtifactSpec(runDir string) string {
 }
 
 // Final evidence must remain available after the agent's working session ends.
-const evidenceOutputSpec = "\n最终报告截图使用专用证据目录：Playwright 的 filename 相对 browser-evidence 根目录，格式为 <任务ID>/<步骤>/<文件名>.png；Weburp 成图保存到数据目录下 tasks/<任务ID>/report-evidence/<漏洞ID>/。其他文件仍遵循上述工作目录规约。"
+const evidenceOutputSpec = "\n最终报告截图使用专用证据目录：Playwright 的 filename 相对 browser-evidence 根目录，格式为 <任务ID>/<步骤>/<文件名>.png；Yak 成图保存到数据目录下 tasks/<任务ID>/report-evidence/<漏洞ID>/。其他文件仍遵循上述工作目录规约。"
 
 // ensureRunDir builds and creates an agent's working directory under base:
 // <base>/tasks/<taskID> for planner/main; <base>/tasks/<taskID>/i<intentID> for a

@@ -1,4 +1,4 @@
-"""Render authenticated Weburp pages in sandboxed, non-root Chromium."""
+"""Render authenticated Yak evidence pages in sandboxed Chromium."""
 import json
 import subprocess
 import tempfile
@@ -42,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error(403)
             token = parse_qs(scene.query)["token"][0]
             with weburp.loopback_open("http://127.0.0.1:8777/api/health", headers={"Authorization": "Bearer " + token}) as r:
-                if json.load(r).get("service") != "weburp":
+                if json.load(r).get("service") != "yak":
                     return self.send_error(403)
             with tempfile.TemporaryDirectory() as work:
                 out = Path(work) / "evidence.png"

@@ -9,7 +9,7 @@ RUN mkdir -p /etc/ssl/certs && node -p "require('node:tls').rootCertificates.joi
 WORKDIR /opt/playwright-mcp
 COPY package.json package-lock.json exclusive-evidence.cjs ./
 RUN npm ci --ignore-scripts --omit=dev && node exclusive-evidence.cjs && npm cache clean --force
-COPY renderer.py /opt/weburp/renderer.py
+COPY renderer.py /opt/yak/renderer.py
 COPY entrypoint.sh /usr/local/bin/start-browser
 ENV HOME=/tmp/browser-home PYTHONDONTWRITEBYTECODE=1
 USER 65534:65534

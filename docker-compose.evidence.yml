@@ -23,7 +23,7 @@ services:
     image: artex-branch-evidence:local
     pull_policy: never
     environment:
-      ARTEX_WEBURP_RENDERER: "1"
+      ARTEX_YAK_RENDERER: "1"
   artex-browser:
     <<: *chromium
     mem_limit: 2g
@@ -44,7 +44,7 @@ services:
         read_only: true
         bind:
           create_host_path: false
-  weburp-renderer:
+  yak-renderer:
     <<: *chromium
     network_mode: service:artex
     mem_limit: 768m
@@ -55,7 +55,7 @@ services:
       retries: 20
     environment:
       HOME: /tmp
-      PYTHONPATH: /opt/weburp/tool
-    entrypoint: [python3, /opt/weburp/renderer.py]
+      PYTHONPATH: /opt/yak/tool
+    entrypoint: [python3, /opt/yak/renderer.py]
     volumes:
-      - ./skills/weburp/tool:/opt/weburp/tool:ro
+      - ./skills/yak/tool:/opt/yak/tool:ro
