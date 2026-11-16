@@ -64,7 +64,7 @@ func validFindingImage(f *db.DBFinding, rel string) bool {
 	if len(p) < 4 || p[1] != strconv.FormatInt(*f.TaskID, 10) {
 		return false
 	}
-	return (p[0] == "browser-evidence" && len(p) == 4) ||
+	return (p[0] == "browser-evidence" && len(p) >= 4) ||
 		(p[0] == "tasks" && len(p) >= 5 && p[2] == "report-evidence" && p[3] == strconv.FormatInt(f.ID, 10))
 }
 

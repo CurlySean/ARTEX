@@ -25,7 +25,7 @@ func TestFindingZipImages(t *testing.T) {
 	taskID := int64(7)
 	f := &db.DBFinding{ID: 19, TaskID: &taskID}
 	const download = "/api/workspace/download?path="
-	browser := "browser-evidence/7/step1/网页 图.png"
+	browser := "browser-evidence/7/report-evidence/1790/网页 图.png"
 	weburp := "tasks/7/report-evidence/19/flow one/screenshot.png"
 	images := make(map[string][]byte)
 	for i, path := range []string{browser, weburp} {
@@ -111,6 +111,9 @@ func TestFindingZipImages(t *testing.T) {
 		}
 	}
 
+	if err := os.MkdirAll(filepath.Join(work, "browser-evidence/7/step1"), 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink(filepath.Join(work, weburp), filepath.Join(work, "browser-evidence/7/step1/private.png")); err != nil {
 		t.Fatal(err)
 	}
