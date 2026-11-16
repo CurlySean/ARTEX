@@ -274,9 +274,12 @@ export function FindingsTable({
                   <div className="flex items-center gap-1">
                     {retest ? (
                       <Button asChild size="sm" variant="ghost">
-                        <Link href={`/chat?c=${retest.conversation_id}`} title="查看正在进行的复测会话">
+                        <Link
+                          href={`/chat?c=${retest.conversation_id}`}
+                          title={retest.status === "pending" ? "查看排队中的复测会话" : "查看正在进行的复测会话"}
+                        >
                           <Spinner data-icon="inline-start" />
-                          复测中
+                          {retest.status === "pending" ? "排队中" : "复测中"}
                         </Link>
                       </Button>
                     ) : null}

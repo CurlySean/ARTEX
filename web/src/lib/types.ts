@@ -1617,3 +1617,32 @@ export interface ReportTemplate {
   body: string;
   is_default: boolean;
 }
+
+export interface FindingRetestBatchItem {
+  finding_id: string;
+  title: string;
+  retest_id: number | null;
+  conversation_id: number | null;
+  status: "pending" | "running" | "completed" | "failed" | "stopped" | "skipped";
+  verdict: "" | "reproduced" | "fixed" | "inconclusive";
+  summary: string;
+  error: string;
+}
+export interface FindingRetestBatch {
+  id: number;
+  notes: string;
+  task_id: string;
+  created_at: string;
+  stopped_at: string | null;
+  total: number;
+  pending: number;
+  running: number;
+  completed: number;
+  failed: number;
+  stopped: number;
+  skipped: number;
+  reproduced: number;
+  fixed: number;
+  inconclusive: number;
+  items?: FindingRetestBatchItem[];
+}

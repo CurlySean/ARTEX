@@ -19,7 +19,7 @@ import { api } from "@/lib/api";
 import type { FindingRetest } from "@/lib/types";
 
 const statusLabels = {
-  pending: "等待启动",
+  pending: "排队中",
   running: "复测中",
   completed: "已完成",
   failed: "复测失败",

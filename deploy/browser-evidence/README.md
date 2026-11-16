@@ -40,3 +40,6 @@ docker compose exec -T artex python3 - < deploy/browser-evidence/verify.py
 预期输出包含 `browser.png 1365 900` 和 `yak.png 1920 1080`。要核验实际报告，选择有两类截图的漏洞，从发现页导出 ZIP，完整解压后使用 Markdown 阅读器打开报告。
 
 后续使用同一组 Compose 文件和项目名启动、停止或查看日志。应用容器重建后执行 `python3 deploy/browser-evidence/install.py`，使 Yak 渲染器连接当前应用容器。已有部署请从原项目目录操作，确保 Compose 使用原有数据卷、`./data`、`./skills` 和数据库配置。
+
+
+批量复测也可使用取证工具：安装脚本发现已有 `retester` Agent 时，会为它增加浏览器 MCP 和 `yak` Skill 绑定，并保留其他工具与提示词。每次复测的 `get_finding_retest_context` 会返回独立证据目录；使用不同截图文件名，避免覆盖历史证据。

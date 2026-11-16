@@ -92,6 +92,9 @@ func waitRetestIdle(t *testing.T, s *Server) {
 		s.chatMu.Lock()
 		n := len(s.chatBusy)
 		s.chatMu.Unlock()
+		if n == 0 && s.ctx.Err() == nil {
+			_ = s.m.pg.QueryRow(`SELECT count(*) FROM finding_retests WHERE status IN ('pending','running')`).Scan(&n)
+		}
 		if n == 0 {
 			return
 		}

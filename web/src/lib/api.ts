@@ -7,7 +7,6 @@ import type { ChatMention } from "@/lib/chat-mentions";
 import { MOCK } from "@/lib/mock/enabled";
 import { mockHandle } from "@/lib/mock/handler";
 import type {
-  ReportTemplate,
   ActiveFindingRetest,
   Activity,
   Agent,
@@ -42,6 +41,7 @@ import type {
   FindingGroupsPage,
   FindingQuery,
   FindingRetest,
+  FindingRetestBatch,
   FindingStats,
   FindingStatus,
   FindingsPage,
@@ -72,6 +72,7 @@ import type {
   NotificationMeta,
   PromptVar,
   PromptVersion,
+  ReportTemplate,
   SessionTokenUsage,
   Settings,
   Severity,
@@ -304,12 +305,18 @@ export const api = {
       task_ids: taskIds,
       category_id: categoryId ?? null,
     }),
-  reportTemplates: () => MOCK ? Promise.resolve({ templates: [] as ReportTemplate[], starter: "", builtin: "" }) : get<{ templates: ReportTemplate[]; starter: string; builtin: string }>("/report-templates"),
-  createReportTemplate: (input: { name: string; body: string }) => reportTemplateWrite(() => post<ReportTemplate>("/report-templates", input)),
-  updateReportTemplate: (id: number, input: { name: string; body: string }) => reportTemplateWrite(() => put<ReportTemplate>(`/report-templates/${id}`, input)),
+  reportTemplates: () =>
+    MOCK
+      ? Promise.resolve({ templates: [] as ReportTemplate[], starter: "", builtin: "" })
+      : get<{ templates: ReportTemplate[]; starter: string; builtin: string }>("/report-templates"),
+  createReportTemplate: (input: { name: string; body: string }) =>
+    reportTemplateWrite(() => post<ReportTemplate>("/report-templates", input)),
+  updateReportTemplate: (id: number, input: { name: string; body: string }) =>
+    reportTemplateWrite(() => put<ReportTemplate>(`/report-templates/${id}`, input)),
   deleteReportTemplate: (id: number) => reportTemplateWrite(() => del(`/report-templates/${id}`)),
   defaultReportTemplate: (id: number) => reportTemplateWrite(() => put(`/report-templates/${id}/default`, {})),
-  previewReportTemplate: (body: string, kind: "task" | "findings" | "single" = "findings") => reportTemplateWrite(() => post<{ markdown: string }>("/report-templates/preview", { body, kind })),
+  previewReportTemplate: (body: string, kind: "task" | "findings" | "single" = "findings") =>
+    reportTemplateWrite(() => post<{ markdown: string }>("/report-templates/preview", { body, kind })),
   taskTemplates: () => get<{ templates: TaskTemplate[] }>("/task-templates").then((r) => arr(r.templates)),
   createTaskTemplate: (
     input: Pick<TaskTemplate, "name" | "description" | "goal" | "category_id" | "intercept_rules">,
@@ -689,6 +696,25 @@ export const api = {
     ),
   activeFindingRetests: () =>
     get<{ retests: ActiveFindingRetest[] }>("/exploration/findings/retests/active").then((r) => arr(r.retests)),
+  findingRetestCandidates: (filters: Omit<FindingQuery, "page" | "pageSize">) =>
+    get<{ ids: string[]; total: number }>(`/exploration/findings/retest-candidates?${findingFilterParams(filters)}`),
+  createFindingRetestBatch: (input: { ids: string[]; notes: string; request_key: string; task_id?: string }) =>
+    post<{ batch: FindingRetestBatch; created: boolean }>("/exploration/finding-retest-batches", input),
+  findingRetestBatches: (taskId = "", before = 0) =>
+    get<{ batches: FindingRetestBatch[]; concurrency: number }>(
+      `/exploration/finding-retest-batches?${new URLSearchParams({ task_id: taskId, before: String(before) })}`,
+    ),
+  findingRetestBatch: (id: number) => get<FindingRetestBatch>(`/exploration/finding-retest-batches/${id}`),
+  stopFindingRetestBatch: (id: number) =>
+    post<FindingRetestBatch>(`/exploration/finding-retest-batches/${id}/stop`, {}),
+  retryFindingRetestBatch: (id: number, scope: "failed" | "inconclusive", requestKey: string) =>
+    post<{ batch: FindingRetestBatch; created: boolean }>(`/exploration/finding-retest-batches/${id}/retry`, {
+      scope,
+      request_key: requestKey,
+    }),
+  findingRetestSettings: () => get<{ concurrency: number }>("/exploration/findings/retests/settings"),
+  setFindingRetestConcurrency: (concurrency: number) =>
+    put<{ concurrency: number }>("/exploration/findings/retests/settings", { concurrency }),
   startFindingRetest: (id: string, notes: string) =>
     post<{ retest: FindingRetest; created: boolean }>(`/exploration/findings/${encodeURIComponent(id)}/retests`, {
       notes,

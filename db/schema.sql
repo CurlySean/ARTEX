@@ -1128,6 +1128,30 @@ CREATE INDEX IF NOT EXISTS idx_finding_retests_history ON finding_retests(findin
 CREATE UNIQUE INDEX IF NOT EXISTS idx_finding_retests_active ON finding_retests(finding_id)
     WHERE status IN ('pending','running');
 
+-- A pending record without a claim survives restarts. Claimed runs never replay automatically.
+ALTER TABLE finding_retests ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_finding_retests_queue ON finding_retests(id)
+    WHERE status='pending' AND claimed_at IS NULL;
+CREATE TABLE IF NOT EXISTS finding_retest_batches (
+    id BIGSERIAL PRIMARY KEY,
+    request_key TEXT NOT NULL UNIQUE,
+    request_hash TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    task_id TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    stopped_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS finding_retest_batch_items (
+    batch_id BIGINT NOT NULL REFERENCES finding_retest_batches(id) ON DELETE CASCADE,
+    -- Preserve the submitted identity/title even when the original finding is deleted.
+    finding_id BIGINT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    retest_id BIGINT REFERENCES finding_retests(id) ON DELETE SET NULL,
+    skip_reason TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(batch_id, finding_id)
+);
+CREATE INDEX IF NOT EXISTS idx_finding_retest_batch_items_retest ON finding_retest_batch_items(retest_id);
+
 -- 删除会话保留复测记录，同时解除尚未结束的复测占用。
 CREATE OR REPLACE FUNCTION stop_deleted_conversation_retest() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

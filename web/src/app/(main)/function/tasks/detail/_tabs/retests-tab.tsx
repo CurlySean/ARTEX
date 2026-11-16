@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { ArrowUpRightIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
+import { FindingRetestBatches } from "@/components/finding-retest-batches";
 import { FindingRetestPanel } from "@/components/finding-retest-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -70,6 +71,9 @@ export function RetestsTab({ taskId }: { taskId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap justify-end gap-2">
+        <FindingRetestBatches filters={{ task: taskId }} taskId={taskId} />
+      </div>
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>

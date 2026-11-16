@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { ReportTemplateSelect } from "@/components/report-template-select";
 
 import Link from "next/link";
 
@@ -18,7 +17,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { FindingRetestBatches } from "@/components/finding-retest-batches";
 import { FindingRetestDialog } from "@/components/finding-retest-dialog";
+import { ReportTemplateSelect } from "@/components/report-template-select";
 import { StatusBadge } from "@/components/status-badge";
 import { TablePagination } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
@@ -962,6 +963,18 @@ export default function FindingsPage() {
             {selectedIds.size > 0 && (
               <span className="text-xs text-muted-foreground tabular-nums">已选 {selectedIds.size} 条</span>
             )}
+            <FindingRetestBatches
+              selectedIds={[...selectedIds]}
+              filters={{
+                severity,
+                status,
+                vulnclass,
+                task,
+                query,
+                sort,
+                assetScope: view === "asset" ? (assetScope ?? undefined) : undefined,
+              }}
+            />
             <Button size="sm" variant="outline" onClick={openExport}>
               <DownloadIcon /> 导出
             </Button>

@@ -75,6 +75,22 @@ class ExistingPromptUpgradeTest(unittest.TestCase):
         self.assertIn("/app/skills/yak/tool/yak.py", api.prompt)
         self.assertEqual(api.visibility, {"mcp": [7], "skill": ["api-recon", "yak"]})
 
+    def test_retester_browser_binding_preserves_custom_tools(self):
+        class API:
+            visibility = {"mcp": [7], "skill": ["custom-check", "yak"]}
+            def call(self, method, path, body=None):
+                if path == "agents":
+                    return {"agents": [{"key": "retester"}]}
+                if path == "agents/retester/visibility":
+                    if method == "PUT":
+                        self.visibility = body
+                    return self.visibility
+                raise AssertionError((method, path))
+        api = API()
+        install.install_retester_bindings(api, 31)
+        install.install_retester_bindings(api, 31)
+        self.assertEqual(api.visibility, {"mcp": [7, 31], "skill": ["custom-check", "yak"]})
+
     def test_removes_only_legacy_renderer_from_current_compose_project(self):
         with patch.object(install, "compose", return_value='{"name":"my-artex"}'), \
              patch.object(install.subprocess, "check_output", return_value="old-container\n") as listed, \

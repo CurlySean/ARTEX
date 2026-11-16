@@ -80,9 +80,20 @@ func (d *DB) CreateFindingRetest(ctx context.Context, findingID int64, notes str
 		return nil, nil, false, err
 	}
 	defer tx.Rollback()
+	r, c, created, err := createFindingRetestTx(ctx, tx, findingID, notes)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, nil, false, err
+	}
+	return r, c, created, nil
+}
+
+func createFindingRetestTx(ctx context.Context, tx *sql.Tx, findingID int64, notes string) (*FindingRetest, *Conversation, bool, error) {
 	var title string
 	var snapshot []byte
-	err = tx.QueryRowContext(ctx, `SELECT COALESCE(NULLIF(f.name,''), NULLIF(f.vulnclass,''), '未分类'),
+	err := tx.QueryRowContext(ctx, `SELECT COALESCE(NULLIF(f.name,''), NULLIF(f.vulnclass,''), '未分类'),
 	jsonb_build_object('finding', to_jsonb(f),
 	 'assets', COALESCE((SELECT jsonb_agg(to_jsonb(a)) FROM assets a WHERE f.asset_ids @> to_jsonb(ARRAY[a.id])), '[]'::jsonb),
 	 'constraints', COALESCE((SELECT jsonb_agg(to_jsonb(c)) FROM task_constraints c JOIN tasks t ON t.exploration_id=c.exploration_id WHERE t.id=f.task_id), '[]'::jsonb))
@@ -117,9 +128,6 @@ func (d *DB) CreateFindingRetest(ctx context.Context, findingID int64, notes str
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if err = tx.Commit(); err != nil {
-		return nil, nil, false, err
-	}
 	return r, &c, true, nil
 }
 
@@ -128,6 +136,8 @@ func (r *FindingRetest) InitialMessage() string {
 	if r.Notes != "" {
 		msg += "\n\n本次复测补充说明：\n" + r.Notes
 	}
+	msg += "\n\n如需截图，使用 get_finding_retest_context 返回的 evidence_paths：浏览器 filename 和 Yak 输出使用本次复测专属目录，并以不同文件名保存每一步；在 evidence 中引用实际生成的图片。不要复用其他复测的页面、截图或 Yak scene。"
+
 	return msg
 }
 
@@ -254,6 +264,7 @@ func (d *DB) FinishFindingRetest(id int64, status, reason string) error {
 }
 
 func (d *DB) RecoverFindingRetests() error {
-	_, err := d.Exec(`UPDATE finding_retests SET status='stopped', error='服务重启，复测已中断，请重新发起', finished_at=now() WHERE status IN ('pending','running')`)
+	_, err := d.Exec(`UPDATE finding_retests SET status='stopped', error='服务重启，复测已中断，请重新发起', finished_at=now()
+        WHERE status='running' OR (status='pending' AND claimed_at IS NOT NULL)`)
 	return err
 }

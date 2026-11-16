@@ -146,6 +146,24 @@ def migrate_other_agent_skills(api):
             api.call("PUT", visibility_path, updated)
 
 
+def install_retester_bindings(api, mid):
+    # Older installations may not have the optional retester agent yet.
+    if not any(a["key"] == "retester" for a in api.call("GET", "agents")["agents"]):
+        return
+    path = "agents/retester/visibility"
+    current = api.call("GET", path)
+    updated = migrate_yak_visibility(current)
+    if mid not in updated["mcp"]:
+        updated["mcp"].append(mid)
+    if "yak" not in updated["skill"]:
+        updated["skill"].append("yak")
+    if updated != {"mcp": current.get("mcp") or [], "skill": current.get("skill") or []}:
+        api.call("PUT", path, updated)
+    actual = api.call("GET", path)
+    if any(set(actual[key] or []) != set(values) for key, values in updated.items()):
+        raise RuntimeError("retester 工具绑定回读不一致")
+
+
 def configure_mcp(api):
     existing = next((s for s in api.call("GET", "mcp")["servers"]
                      if s["name"] == "browser-evidence"), None)
@@ -163,6 +181,7 @@ def configure_mcp(api):
     for role in ("worker", "pentest", "reporter"):
         install_prompt(api, role, mid)
     migrate_other_agent_skills(api)
+    install_retester_bindings(api, mid)
 
 
 def remove_legacy_renderer():

@@ -370,6 +370,12 @@ func (s *Server) pgStopConversation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if c.AgentKey == db.FindingRetestAgentKey {
+		if err := s.stopRetestConversation(c.ID); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+	}
 	busyKey := s.convBusyKey(c.ID)
 	s.chatMu.Lock()
 	cancel := s.chatCancel[busyKey]
@@ -389,6 +395,17 @@ func (s *Server) pgSendConversationMessage(w http.ResponseWriter, r *http.Reques
 	pg, c, ok := s.convByID(w, r)
 	if !ok {
 		return
+	}
+	if c.AgentKey == db.FindingRetestAgentKey {
+		retest, err := pg.FindingRetestForConversation(r.Context(), c.ID)
+		if err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		if retest != nil && (retest.Status == "pending" || retest.Status == "running") {
+			writeErr(w, 409, "该漏洞正在排队或复测，请等待完成后再发送消息")
+			return
+		}
 	}
 	var req struct {
 		Message     string           `json:"message"`
@@ -514,6 +531,9 @@ func (s *Server) runConversationTurn(ctx context.Context, cancel context.CancelC
 			if err := s.m.pg.FailPendingRetestForConversation(c.ID, "复测状态读取失败，请重新发起"); err != nil {
 				log.Printf("[conv %d] seal retest: %v", c.ID, err)
 			}
+			return
+		}
+		if ctx.Value(retestQueuedRunKey{}) != nil && (r == nil || r.Status != "pending") {
 			return
 		}
 		if r != nil && r.Status == "pending" {

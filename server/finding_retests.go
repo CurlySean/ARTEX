@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -88,35 +90,11 @@ func (s *Server) startFindingRetest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "finding not found")
 		return
 	}
-	a, err := pg.GetAgentByKey(db.FindingRetestAgentKey)
-	if err != nil {
-		writeErr(w, 500, err.Error())
+	if !s.findingRetesterReady(w) {
 		return
 	}
-	if a == nil || !a.Enabled {
-		writeErr(w, 409, "漏洞复测 Agent 不存在或未启用，请在 Agent 管理中配置 retester")
-		return
-	}
-	for _, key := range []string{"get_finding_retest_context", "record_finding_retest_result"} {
-		t, err := pg.GetTool(key)
-		if err != nil {
-			writeErr(w, 500, err.Error())
-			return
-		}
-		if t == nil || !t.Enabled || !slices.Contains(t.Agents, a.Key) {
-			writeErr(w, 409, "请为复测 Agent 启用并绑定工具："+key)
-			return
-		}
-	}
-	if s.resolveChatAgent(&db.Conversation{AgentKey: a.Key}) == nil {
-		writeErr(w, 503, s.chatUnavailableReason())
-		return
-	}
-	if s.ctx.Err() != nil {
-		writeErr(w, 503, "服务正在停止")
-		return
-	}
-	retest, conv, created, err := pg.CreateFindingRetest(r.Context(), id, req.Notes)
+
+	retest, _, created, err := pg.CreateFindingRetest(r.Context(), id, req.Notes)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeErr(w, 404, "finding not found")
 		return
@@ -125,13 +103,8 @@ func (s *Server) startFindingRetest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	if created {
-		busyKey := s.convBusyKey(conv.ID)
-		s.chatMu.Lock()
-		s.chatBusy[busyKey] = true
-		s.chatMu.Unlock()
-		s.runConversation(conv, retest.InitialMessage(), busyKey)
-	}
+	s.wakeFindingRetests()
+
 	code := http.StatusOK
 	if created {
 		code = http.StatusAccepted
@@ -141,6 +114,38 @@ func (s *Server) startFindingRetest(w http.ResponseWriter, r *http.Request) {
 
 // Both tools derive the finding from server-owned conversation context. Tool
 // arguments cannot redirect a result into a different finding or conversation.
+func (s *Server) findingRetesterReady(w http.ResponseWriter) bool {
+	a, err := s.m.pg.GetAgentByKey(db.FindingRetestAgentKey)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return false
+	}
+	if a == nil || !a.Enabled {
+		writeErr(w, 409, "漏洞复测 Agent 不存在或未启用，请在 Agent 管理中配置 retester")
+		return false
+	}
+	for _, key := range []string{"get_finding_retest_context", "record_finding_retest_result"} {
+		t, err := s.m.pg.GetTool(key)
+		if err != nil {
+			writeErr(w, 500, err.Error())
+			return false
+		}
+		if t == nil || !t.Enabled || !slices.Contains(t.Agents, a.Key) {
+			writeErr(w, 409, "请为复测 Agent 启用并绑定工具："+key)
+			return false
+		}
+	}
+	if s.resolveChatAgent(&db.Conversation{AgentKey: a.Key}) == nil {
+		writeErr(w, 503, s.chatUnavailableReason())
+		return false
+	}
+	if s.ctx.Err() != nil {
+		writeErr(w, 503, "服务正在停止")
+		return false
+	}
+	return true
+}
+
 func (s *Server) findingRetestTools() []actool.CoreTool {
 	return []actool.CoreTool{
 		roTool("get_finding_retest_context", "读取当前复测会话关联的漏洞证据快照、复测状态、补充说明与当前任务约束。无参数，只能读取本会话。",
@@ -165,7 +170,20 @@ func (s *Server) findingRetestTools() []actool.CoreTool {
 						}
 					}
 				}
-				return jsonResult(map[string]any{"retest": r, "current_constraints": constraints})
+				taskID := "unassigned"
+				if f != nil && f.TaskID != nil {
+					taskID = strconv.FormatInt(*f.TaskID, 10)
+				}
+				suffix := fmt.Sprintf("%s/report-evidence/%d/retests/%d", taskID, r.FindingID, r.ID)
+				return jsonResult(map[string]any{"retest": r, "current_constraints": constraints,
+					"evidence_paths": map[string]string{
+						"browser_filename_prefix": suffix,
+						"browser_markdown_prefix": "browser-evidence/" + suffix,
+						"yak_output_directory":    filepath.Join(s.m.dir, "tasks", filepath.FromSlash(suffix)),
+						"yak_markdown_prefix":     "tasks/" + suffix,
+						"yak_scene_prefix":        fmt.Sprintf("retest-%d-", r.ID),
+					},
+				})
 			}),
 		wrTool("record_finding_retest_result", "为当前复测会话保存唯一结论；原漏洞证据与报告保持不变。会话成功结束且结论为 fixed 时，系统自动将漏洞状态改为已修复；其他结论保留原状态。必须提供本次实际检查的证据，无法确认时写明阻塞原因。",
 			objSchema(map[string]any{

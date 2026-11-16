@@ -42,7 +42,7 @@ export function FindingRetestDialog({ findingId, findingName, onClose, onStarted
       const result = await api.startFindingRetest(findingId, notes.trim());
       onStarted?.(result.retest);
       onClose();
-      toast.success(result.created ? "复测已启动，可点击「复测中」查看会话" : "该漏洞正在复测，可查看已有会话");
+      toast.success(result.created ? "复测已加入队列，可点击状态查看会话" : "该漏洞已排队或正在复测，可查看已有会话");
     } catch (e) {
       toast.error(`发起复测失败：${(e as Error).message}`);
     } finally {

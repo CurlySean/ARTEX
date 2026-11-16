@@ -7,9 +7,11 @@ import Link from "next/link";
 import { ArrowDownIcon, ArrowUpIcon, ArrowUpRightIcon, ChevronRightIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { FindingRetestBatches } from "@/components/finding-retest-batches";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useStoredSortPreference } from "@/lib/sort-preference";
@@ -44,8 +46,12 @@ function Row({
   f,
   contextTaskId,
   onStatus,
+  selected,
+  onSelect,
 }: {
   f: Finding;
+  selected: boolean;
+  onSelect: (checked: boolean) => void;
   contextTaskId: string;
   onStatus: (f: Finding, next: FindingStatus) => void;
 }) {
@@ -53,6 +59,12 @@ function Row({
   return (
     <div className="border-b last:border-b-0">
       <div className="flex w-full items-center gap-3 px-4 py-3 text-sm hover:bg-accent/40">
+        <Checkbox
+          checked={selected}
+          disabled={f.inherited === true || !f.finding_id}
+          onCheckedChange={(v) => onSelect(v === true)}
+          aria-label={`选择漏洞 ${findingLabel(f)}`}
+        />
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -138,6 +150,11 @@ function Row({
 }
 
 export function FindingsTab({ taskId }: { taskId: string }) {
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(() => new Set());
+  React.useEffect(() => {
+    void taskId;
+    setSelectedIds(new Set());
+  }, [taskId]);
   const [findings, setFindings] = React.useState<Finding[]>([]);
   const [sortPreference, setSortPreference] = useStoredSortPreference(
     FINDING_SORT_PREFERENCE_KEY,
@@ -187,37 +204,66 @@ export function FindingsTab({ taskId }: { taskId: string }) {
       return b.id.localeCompare(a.id, undefined, { numeric: true });
     });
 
+  const ownIds = items.filter((f) => !f.inherited && f.finding_id).map((f) => f.finding_id!);
+  const selected = ownIds.filter((id) => selectedIds.has(id));
   return (
-    <Card className="overflow-hidden py-0">
-      <CardContent className="px-0">
-        <div className="flex items-center border-b px-4 py-2 text-xs text-muted-foreground">
-          <span className="min-w-0 flex-1">漏洞</span>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 outline-none focus-visible:underline"
-            aria-label={`发现时间当前${sortPreference.direction === "asc" ? "正序" : "倒序"}，点击切换排序方向`}
-            onClick={() =>
-              setSortPreference((current) => ({
-                field: "time",
-                direction: current.direction === "asc" ? "desc" : "asc",
-              }))
-            }
-          >
-            <span>发现时间</span>
-            {sortPreference.direction === "asc" ? (
-              <ArrowUpIcon className="size-3.5" />
-            ) : (
-              <ArrowDownIcon className="size-3.5" />
-            )}
-          </button>
-        </div>
-        {items.map((f) => (
-          <Row key={f.id} f={f} contextTaskId={taskId} onStatus={onStatus} />
-        ))}
-        {items.length === 0 && (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">本任务及直接关联任务暂无确认发现。</p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Checkbox
+          aria-label="选择当前任务全部漏洞"
+          checked={ownIds.length > 0 && selected.length === ownIds.length}
+          disabled={!ownIds.length}
+          onCheckedChange={(v) => setSelectedIds(v === true ? new Set(ownIds) : new Set())}
+        />
+        <span className="mr-auto text-sm text-muted-foreground">已选 {selected.length} 条</span>
+        <FindingRetestBatches selectedIds={selected} filters={{ task: taskId }} taskId={taskId} />
+      </div>
+      <Card className="overflow-hidden py-0">
+        <CardContent className="px-0">
+          <div className="flex items-center border-b px-4 py-2 text-xs text-muted-foreground">
+            <span className="min-w-0 flex-1">漏洞</span>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 outline-none focus-visible:underline"
+              aria-label={`发现时间当前${sortPreference.direction === "asc" ? "正序" : "倒序"}，点击切换排序方向`}
+              onClick={() =>
+                setSortPreference((current) => ({
+                  field: "time",
+                  direction: current.direction === "asc" ? "desc" : "asc",
+                }))
+              }
+            >
+              <span>发现时间</span>
+              {sortPreference.direction === "asc" ? (
+                <ArrowUpIcon className="size-3.5" />
+              ) : (
+                <ArrowDownIcon className="size-3.5" />
+              )}
+            </button>
+          </div>
+          {items.map((f) => (
+            <Row
+              key={f.id}
+              f={f}
+              contextTaskId={taskId}
+              onStatus={onStatus}
+              selected={Boolean(f.finding_id && selectedIds.has(f.finding_id))}
+              onSelect={(checked) => {
+                if (!f.finding_id || f.inherited) return;
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.add(f.finding_id!);
+                  else next.delete(f.finding_id!);
+                  return next;
+                });
+              }}
+            />
+          ))}
+          {items.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">本任务及直接关联任务暂无确认发现。</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
