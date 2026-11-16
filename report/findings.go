@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Autumn-27/artex/db"
 )
@@ -135,7 +136,11 @@ func FindingFilename(f *db.DBFinding) string {
 	// 防御性:再剥一层路径,杜绝 zip slip。
 	name = path.Base(name)
 	if len(name) > 120 {
-		name = name[:120]
+		end := 120
+		for !utf8.RuneStart(name[end]) {
+			end--
+		}
+		name = name[:end]
 	}
 	return name + ".md"
 }
