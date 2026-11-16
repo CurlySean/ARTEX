@@ -1,5 +1,7 @@
 # 在另一台机器启用报告截图
 
+新机器推荐使用 [统一部署入口](../unified/README.md)，它包含四个服务的 Compose 配置和启动、停止脚本。下列步骤保留为手动安装方式。
+
 使用本分支的 ARTEX 镜像、PostgreSQL 和两个 Chromium 服务。Playwright 供 Agent 操作目标网页，Yak 根据已保存的请求和响应生成报文截图。浏览器服务在当前 Compose 项目的网络内通信，截图保存在项目的 `data/` 中。
 
 Yakit 界面资源来自提供的 `yak.zip`（SHA-256 `f732144dc861e7091d2686e5dcc02674855a36919cb7df1b626c94fc678c9815`），已纳入 `skills/yak/`。它提供本地报文界面，包内不包含完整 Yak 扫描引擎；资源来源与许可见 `skills/yak/tool/assets/yakit/THIRD_PARTY.md`。

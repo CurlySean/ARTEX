@@ -1,0 +1,118 @@
+# Portable four-service deployment. Managed by ./artex-stack.sh.
+name: ${COMPOSE_PROJECT_NAME:-artex}
+
+x-chromium: &chromium
+  image: artex-evidence-tools:local
+  build:
+    context: ./deploy/browser-evidence
+    args:
+      DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org}
+  restart: unless-stopped
+  init: true
+  read_only: true
+  user: "65534:65534"
+  security_opt:
+    - no-new-privileges:true
+    - seccomp=./deploy/browser-evidence/chromium-seccomp.json
+  cap_drop: [ALL]
+  pids_limit: 512
+  shm_size: 256m
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=512m
+  depends_on:
+    artex:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-artex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请先运行 ./artex-stack.sh start}
+      POSTGRES_DB: ${POSTGRES_DB:-artex}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    stop_grace_period: 60s
+    restart: unless-stopped
+
+  artex:
+    image: artex-branch-evidence:local
+    pull_policy: never
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ARTEX_PG_DSN: postgres://${POSTGRES_USER:-artex}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-artex}?sslmode=disable
+      ARTEX_YAK_RENDERER: "1"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ARTEX_LLM_PROVIDER: ${ARTEX_LLM_PROVIDER:-}
+      ARTEX_LLM_MODEL: ${ARTEX_LLM_MODEL:-}
+      ARTEX_LLM_BASE_URL: ${ARTEX_LLM_BASE_URL:-}
+      ARTEX_LLM_PROXY: ${ARTEX_LLM_PROXY:-}
+    ports:
+      - "127.0.0.1:${ARTEX_PORT:-8787}:8787"
+      - "127.0.0.1:${ARTEX_PROXY_PORT:-8788}:8788"
+    volumes:
+      - ./data:/app/data
+      - ./skills:/app/skills
+      - ./state/yak:/root/.yak
+      - type: bind
+        source: ./state/jwt.key
+        target: /app/jwt.key
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:8787/api/health]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 20
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  artex-browser:
+    <<: *chromium
+    mem_limit: 2g
+    environment:
+      ARTEX_CAPTURE: "true"
+      ARTEX_BROWSER_PROXY: http://artex:8788
+      ARTEX_BROWSER_BYPASS: artex,artex-browser
+    volumes:
+      - ./data/browser-evidence:/evidence
+      - type: bind
+        source: ./data/traffic/_ca/mitmproxy-ca-cert.pem
+        target: /etc/artex/traffic-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; socket.create_connection(('127.0.0.1', 8931), 2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  yak-renderer:
+    <<: *chromium
+    network_mode: service:artex
+    mem_limit: 768m
+    environment:
+      HOME: /tmp
+      PYTHONPATH: /opt/yak/tool
+    entrypoint: [python3, /opt/yak/renderer.py]
+    volumes:
+      - ./skills/yak/tool:/opt/yak/tool:ro
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; socket.create_connection(('127.0.0.1', 18777), 2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

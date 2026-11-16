@@ -1,4 +1,13 @@
 .git
+.env
+.env.*
+state
+backups
+验收
+.superpowers
+**/*.dump
+**/jwt.key
+config/*.env
 **/node_modules
 web/.next
 web/out
